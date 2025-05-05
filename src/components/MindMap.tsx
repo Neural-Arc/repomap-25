@@ -16,7 +16,8 @@ import ReactFlow, {
   NodeProps,
   Panel,
   NodeMouseHandler,
-  BackgroundVariant
+  BackgroundVariant,
+  MarkerType
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useApi } from "@/contexts/ApiContext";
@@ -181,7 +182,7 @@ const convertToFlowElements = (repoData: RepoNode | null): { nodes: Node[], edge
             strokeWidth: 2,
           },
           markerEnd: {
-            type: 'arrowclosed',
+            type: MarkerType.ArrowClosed,
             color: getEdgeColor(child.type),
             width: 20,
             height: 20,

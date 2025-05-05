@@ -72,25 +72,28 @@ interface FileDetailProps {
   onClose: () => void;
 }
 
-// Color scheme for nodes
+// Modern glass-morphism style color scheme
 const NODE_COLORS = {
   directory: {
-    border: '#9b87f5',
-    background: 'from-purple-800/40 to-indigo-900/40',
-    text: 'text-purple-100',
-    icon: 'text-purple-400'
+    border: 'rgba(139, 92, 246, 0.6)',
+    background: 'from-purple-600/20 to-indigo-600/10',
+    glow: '0 0 15px rgba(139, 92, 246, 0.5)',
+    text: 'text-white',
+    icon: 'text-purple-300'
   },
   file: {
-    border: '#10b981',
-    background: 'from-emerald-800/40 to-emerald-900/40',
-    text: 'text-emerald-100',
-    icon: 'text-emerald-400'
+    border: 'rgba(16, 185, 129, 0.6)',
+    background: 'from-emerald-600/20 to-teal-600/10',
+    glow: '0 0 15px rgba(16, 185, 129, 0.5)',
+    text: 'text-white',
+    icon: 'text-emerald-300'
   },
   function: {
-    border: '#8b5cf6',
-    background: 'from-violet-800/40 to-violet-900/40',
-    text: 'text-violet-100',
-    icon: 'text-violet-400'
+    border: 'rgba(99, 102, 241, 0.6)',
+    background: 'from-blue-600/20 to-indigo-600/10',
+    glow: '0 0 15px rgba(99, 102, 241, 0.5)',
+    text: 'text-white',
+    icon: 'text-blue-300'
   }
 };
 
@@ -113,22 +116,33 @@ const EXTENSION_COLORS = {
   default: '#94a3b8'
 };
 
-// Custom node components
+// Custom node components with modern glass-morphism style
 const DirectoryNode = ({ data, isConnectable, id }: NodeProps) => {
   return (
     <div className="group relative">
-      <div className={`px-4 py-3 shadow-lg rounded-md border-2 border-[${NODE_COLORS.directory.border}] bg-gradient-to-br ${NODE_COLORS.directory.background} backdrop-blur-sm transition-all duration-300 group-hover:shadow-xl group-hover:shadow-purple-500/20 min-w-[140px] z-10`}>
+      <div 
+        style={{ 
+          boxShadow: NODE_COLORS.directory.glow,
+          borderColor: NODE_COLORS.directory.border,
+          backdropFilter: 'blur(5px)'
+        }}
+        className={`px-5 py-4 rounded-lg border border-opacity-60 bg-gradient-to-br ${NODE_COLORS.directory.background} transition-all duration-300 group-hover:shadow-xl min-w-[180px] z-10`}
+      >
         <div className="flex items-center gap-2">
-          <Folder className={`${NODE_COLORS.directory.icon} w-5 h-5`} />
-          <span className={`font-medium text-sm ${NODE_COLORS.directory.text}`}>{data.label}</span>
-          {data.type === 'directory' && (
-            <Badge variant="outline" className="text-[0.65rem] bg-purple-950/60 text-purple-200 border-purple-400/30">
-              dir
-            </Badge>
-          )}
+          <div className="bg-purple-900/40 p-2 rounded-md">
+            <Folder className={`${NODE_COLORS.directory.icon} w-5 h-5`} />
+          </div>
+          <div className="flex flex-col">
+            <span className={`font-medium ${NODE_COLORS.directory.text}`}>{data.label}</span>
+            {data.type === 'directory' && (
+              <Badge variant="outline" className="text-[0.65rem] bg-purple-900/40 text-purple-100 border-purple-400/30 mt-1">
+                directory
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
-      <div className="absolute inset-0 bg-purple-500/5 rounded-md -z-10 blur-sm opacity-0 group-hover:opacity-100 transition-opacity"></div>
+      <div className="absolute inset-0 bg-purple-500/10 rounded-lg -z-10 blur-md opacity-0 group-hover:opacity-100 transition-opacity"></div>
     </div>
   );
 };
@@ -146,18 +160,29 @@ const FileNode = ({ data, isConnectable, id }: NodeProps) => {
   
   return (
     <div className="group relative">
-      <div className={`px-4 py-3 shadow-lg rounded-md border-2 border-[${NODE_COLORS.file.border}] bg-gradient-to-br ${NODE_COLORS.file.background} backdrop-blur-sm transition-all duration-300 group-hover:shadow-xl group-hover:shadow-green-500/20 min-w-[140px] z-10`}>
+      <div 
+        style={{ 
+          boxShadow: NODE_COLORS.file.glow,
+          borderColor: NODE_COLORS.file.border,
+          backdropFilter: 'blur(5px)'
+        }}
+        className={`px-5 py-4 rounded-lg border border-opacity-60 bg-gradient-to-br ${NODE_COLORS.file.background} transition-all duration-300 group-hover:shadow-xl min-w-[180px] z-10`}
+      >
         <div className="flex items-center gap-2">
-          <FileCode style={{ color: fileColor }} className="w-5 h-5" />
-          <span className={`font-medium text-sm ${NODE_COLORS.file.text}`}>{data.label}</span>
-          {extension && (
-            <Badge variant="outline" className="text-[0.65rem] bg-emerald-950/60 text-emerald-200 border-emerald-400/30">
-              {extension}
-            </Badge>
-          )}
+          <div className="bg-emerald-900/40 p-2 rounded-md">
+            <FileCode style={{ color: fileColor }} className="w-5 h-5" />
+          </div>
+          <div className="flex flex-col">
+            <span className={`font-medium ${NODE_COLORS.file.text}`}>{data.label}</span>
+            {extension && (
+              <Badge variant="outline" className="text-[0.65rem] bg-emerald-900/40 text-emerald-100 border-emerald-400/30 mt-1">
+                {extension}
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
-      <div className="absolute inset-0 bg-emerald-500/5 rounded-md -z-10 blur-sm opacity-0 group-hover:opacity-100 transition-opacity"></div>
+      <div className="absolute inset-0 bg-emerald-500/10 rounded-lg -z-10 blur-md opacity-0 group-hover:opacity-100 transition-opacity"></div>
     </div>
   );
 };
@@ -165,16 +190,27 @@ const FileNode = ({ data, isConnectable, id }: NodeProps) => {
 const FunctionNode = ({ data, isConnectable, id }: NodeProps) => {
   return (
     <div className="group relative">
-      <div className={`px-4 py-3 shadow-lg rounded-md border-2 border-[${NODE_COLORS.function.border}] bg-gradient-to-br ${NODE_COLORS.function.background} backdrop-blur-sm transition-all duration-300 group-hover:shadow-xl group-hover:shadow-violet-500/20 min-w-[140px] z-10`}>
+      <div 
+        style={{ 
+          boxShadow: NODE_COLORS.function.glow,
+          borderColor: NODE_COLORS.function.border,
+          backdropFilter: 'blur(5px)'
+        }}
+        className={`px-5 py-4 rounded-lg border border-opacity-60 bg-gradient-to-br ${NODE_COLORS.function.background} transition-all duration-300 group-hover:shadow-xl min-w-[180px] z-10`}
+      >
         <div className="flex items-center gap-2">
-          <Code className={`${NODE_COLORS.function.icon} w-5 h-5`} />
-          <span className={`font-medium text-sm ${NODE_COLORS.function.text}`}>{data.label}</span>
-          <Badge variant="outline" className="text-[0.65rem] bg-violet-950/60 text-violet-200 border-violet-400/30">
-            func
-          </Badge>
+          <div className="bg-blue-900/40 p-2 rounded-md">
+            <Code className={`${NODE_COLORS.function.icon} w-5 h-5`} />
+          </div>
+          <div className="flex flex-col">
+            <span className={`font-medium ${NODE_COLORS.function.text}`}>{data.label}</span>
+            <Badge variant="outline" className="text-[0.65rem] bg-blue-900/40 text-blue-100 border-blue-400/30 mt-1">
+              function
+            </Badge>
+          </div>
         </div>
       </div>
-      <div className="absolute inset-0 bg-violet-500/5 rounded-md -z-10 blur-sm opacity-0 group-hover:opacity-100 transition-opacity"></div>
+      <div className="absolute inset-0 bg-blue-500/10 rounded-lg -z-10 blur-md opacity-0 group-hover:opacity-100 transition-opacity"></div>
     </div>
   );
 };
@@ -360,13 +396,18 @@ const convertToFlowElements = (repoData: RepoNode | null): { nodes: Node[], edge
           style: { 
             stroke: getEdgeColor(child.type),
             strokeWidth: 3,
+            opacity: 0.8,
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
             color: getEdgeColor(child.type),
             width: 20,
             height: 20,
-          }
+          },
+          // Use smoothstep edge for better visualization
+          type: 'smoothstep',
+          // Add some curvature to edges
+          curvature: 0.3
         });
       });
     }
@@ -389,17 +430,17 @@ const getNodeType = (type: string): string => {
 };
 
 const getNodeWidth = (label: string, type: string): number => {
-  const baseWidth = 160;
+  const baseWidth = 180;
   const charWidth = 10;
   return Math.max(baseWidth, label.length * charWidth);
 };
 
 const getEdgeColor = (type: string): string => {
   switch (type) {
-    case "directory": return "#9b87f5";
-    case "file": return "#10b981";
-    case "function": return "#8b5cf6";
-    default: return "#94a3b8";
+    case "directory": return "rgba(139, 92, 246, 0.8)";
+    case "file": return "rgba(16, 185, 129, 0.8)";
+    case "function": return "rgba(99, 102, 241, 0.8)";
+    default: return "rgba(148, 163, 184, 0.8)";
   }
 };
 
@@ -474,11 +515,12 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
     (connection: Connection) => setEdges((eds) => addEdge({
       ...connection,
       animated: true,
-      style: { stroke: '#9b87f5', strokeWidth: 3 },
+      style: { stroke: 'rgba(139, 92, 246, 0.8)', strokeWidth: 3 },
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: '#9b87f5',
-      }
+        color: 'rgba(139, 92, 246, 0.8)',
+      },
+      type: 'smoothstep'
     }, eds)),
     [setEdges]
   );
@@ -685,10 +727,10 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
             animated: true,
             style: { strokeWidth: 3 }
           }}
-          className="bg-gradient-to-br from-black/60 to-primary/10"
+          className="bg-gradient-to-br from-gray-950 via-slate-900 to-gray-900"
         >
-          {/* Search panel now moved to center */}
-          <Panel position="top-center" className="bg-background/90 p-4 rounded-md shadow-md border border-border w-full max-w-md mt-2 shadow-lg">
+          {/* Search panel centered */}
+          <Panel position="top-center" className="bg-black/50 backdrop-blur-lg p-4 rounded-lg border border-slate-700/50 w-full max-w-md mt-2 shadow-xl">
             <div className="flex flex-col space-y-3">
               <div className="flex items-center space-x-2">
                 <Search className="h-4 w-4 text-muted-foreground" />
@@ -696,7 +738,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
                   placeholder="Search files..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="h-9 text-sm"
+                  className="h-9 text-sm bg-gray-900/70 border-slate-700"
                 />
               </div>
               <div className="flex items-center space-x-1 flex-wrap gap-1">
@@ -758,13 +800,13 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
           </Panel>
 
           {selectedNode && !isDetailSheetOpen && (
-            <Panel position="bottom-center" className="bg-background/90 p-4 rounded-md shadow-md border border-border max-w-lg mb-4">
+            <Panel position="bottom-center" className="bg-black/50 backdrop-blur-lg p-4 rounded-lg border border-slate-700/50 max-w-lg mb-4 text-white">
               <div className="flex justify-between items-start mb-2">
                 <h3 className="font-semibold">{selectedNode.data.label}</h3>
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-6 w-6 p-0" 
+                  className="h-6 w-6 p-0 text-white/70 hover:text-white" 
                   onClick={() => setSelectedNode(null)}
                 >
                   <X size={14} />
@@ -773,7 +815,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
               
               <div className="space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Type:</span>
+                  <span className="text-gray-300">Type:</span>
                   <Badge variant={selectedNode.data.type === 'directory' ? "secondary" : "outline"}>
                     {selectedNode.data.type}
                   </Badge>
@@ -781,14 +823,14 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
                 
                 {selectedNode.data.path && (
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Path:</span>
-                    <span className="text-xs bg-muted px-2 py-1 rounded">{selectedNode.data.path}</span>
+                    <span className="text-gray-300">Path:</span>
+                    <span className="text-xs bg-gray-800/70 px-2 py-1 rounded">{selectedNode.data.path}</span>
                   </div>
                 )}
                 
                 {selectedNode.data.extension && (
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Extension:</span>
+                    <span className="text-gray-300">Extension:</span>
                     <Badge>.{selectedNode.data.extension}</Badge>
                   </div>
                 )}
@@ -797,7 +839,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="text-xs h-7 flex-1"
+                    className="text-xs h-7 flex-1 bg-gray-800/50 border-slate-700 hover:bg-gray-700 text-gray-200"
                     onClick={() => zoomToNode(selectedNode.id)} 
                   >
                     Focus
@@ -806,7 +848,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="text-xs h-7 flex-1"
+                    className="text-xs h-7 flex-1 bg-gray-800/50 border-slate-700 hover:bg-gray-700 text-gray-200"
                     onClick={() => setIsDetailSheetOpen(true)} 
                   >
                     View Details
@@ -816,7 +858,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="text-xs h-7 flex-1"
+                      className="text-xs h-7 flex-1 bg-gray-800/50 border-slate-700 hover:bg-gray-700 text-gray-200"
                       onClick={() => handleToggleNode(selectedNode.id)} 
                     >
                       {rootNode?.collapsed ? (
@@ -833,12 +875,12 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
           )}
           
           {/* Zoom controls moved to top-right */}
-          <Panel position="top-right" className="bg-background/90 p-2 rounded-md shadow-md border border-border mt-2 mr-2">
+          <Panel position="top-right" className="bg-black/50 backdrop-blur-lg p-2 rounded-lg border border-slate-700/50 mt-2 mr-2">
             <div className="flex gap-1">
               <Button 
                 variant="outline" 
                 size="icon" 
-                className="h-8 w-8" 
+                className="h-8 w-8 bg-gray-800/50 border-slate-700 hover:bg-gray-700 text-gray-200" 
                 onClick={handleZoomIn}
               >
                 <ZoomIn size={16} />
@@ -846,7 +888,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
               <Button 
                 variant="outline" 
                 size="icon" 
-                className="h-8 w-8" 
+                className="h-8 w-8 bg-gray-800/50 border-slate-700 hover:bg-gray-700 text-gray-200" 
                 onClick={handleZoomOut}
               >
                 <ZoomOut size={16} />
@@ -854,7 +896,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
               <Button 
                 variant="outline" 
                 size="icon" 
-                className="h-8 w-8" 
+                className="h-8 w-8 bg-gray-800/50 border-slate-700 hover:bg-gray-700 text-gray-200" 
                 onClick={handleResetView}
               >
                 <Maximize size={16} />
@@ -862,17 +904,17 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
             </div>
           </Panel>
           
-          <Controls className="bg-background/80 border border-border shadow-lg rounded-md" />
+          <Controls className="bg-black/50 backdrop-blur-lg border border-slate-700/50 shadow-lg rounded-md" />
           <MiniMap 
             nodeStrokeWidth={3}
             nodeColor={(node) => {
-              if (node.type === 'directory') return '#9b87f5';
-              if (node.type === 'file') return '#10b981';
-              if (node.type === 'function') return '#8b5cf6';
-              return '#94a3b8';
+              if (node.type === 'directory') return 'rgba(139, 92, 246, 0.6)';
+              if (node.type === 'file') return 'rgba(16, 185, 129, 0.6)';
+              if (node.type === 'function') return 'rgba(99, 102, 241, 0.6)';
+              return 'rgba(148, 163, 184, 0.6)';
             }}
             maskColor="rgba(0, 0, 0, 0.5)"
-            className="bg-background/20 border-muted"
+            className="bg-black/20 border-slate-700/50"
             style={{
               backgroundColor: 'transparent',
               width: 140,
@@ -880,7 +922,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
             }}
           />
           <Background 
-            color="#555555" 
+            color="rgba(255,255,255,0.07)" 
             gap={24} 
             size={1.5} 
             variant={BackgroundVariant.Dots} 
@@ -891,17 +933,17 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
       {/* Details sheet that slides in from the side */}
       {selectedNode && (
         <Sheet open={isDetailSheetOpen} onOpenChange={setIsDetailSheetOpen}>
-          <SheetContent side="right" className="w-full sm:max-w-lg p-0 overflow-hidden">
-            <SheetHeader className="border-b bg-muted/20 p-4">
-              <SheetTitle className="flex items-center gap-2">
+          <SheetContent side="right" className="w-full sm:max-w-lg p-0 overflow-hidden bg-gray-950/95 border-slate-800">
+            <SheetHeader className="border-b border-slate-800 bg-gray-900/40 p-4">
+              <SheetTitle className="flex items-center gap-2 text-white">
                 {selectedNode.data.type === "directory" ? (
-                  <Folder className="h-5 w-5 text-primary" />
+                  <Folder className="h-5 w-5 text-purple-400" />
                 ) : (
-                  <FileCode className="h-5 w-5 text-primary" />
+                  <FileCode className="h-5 w-5 text-emerald-400" />
                 )}
                 {selectedNode.data.label}
               </SheetTitle>
-              <SheetDescription>
+              <SheetDescription className="text-gray-400">
                 {selectedNode.data.path || "Path not available"}
               </SheetDescription>
             </SheetHeader>
@@ -911,11 +953,11 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
       )}
       
       {/* Quick tips card */}
-      <Card className="mt-6 border border-border/50 bg-muted/5">
+      <Card className="mt-6 border border-slate-800/50 bg-gray-900/30 text-white">
         <CardHeader className="pb-2 pt-4">
           <CardTitle className="text-lg">Mind Map Tips</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
+        <CardContent className="text-sm text-gray-300">
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <p className="font-medium mb-1">Navigation:</p>

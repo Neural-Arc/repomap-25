@@ -1,23 +1,34 @@
-
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, Share } from "lucide-react";
+import { Download, Share, ZoomIn, ZoomOut } from "lucide-react";
 import { toast } from "sonner";
+import ReactFlow, {
+  MiniMap,
+  Controls,
+  Background,
+  useNodesState,
+  useEdgesState,
+  addEdge,
+  Connection,
+  Edge,
+  Node
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 
 interface MindMapProps {
   repoUrl: string;
 }
 
-interface Node {
+interface RepoNode {
   id: string;
   label: string;
   type: "directory" | "file" | "function";
-  children: Node[];
+  children: RepoNode[];
   collapsed?: boolean;
 }
 
 // Mock data generation for demonstration purposes
-const generateMockData = (repoUrl: string): Node => {
+const generateMockData = (repoUrl: string): RepoNode => {
   const repoName = repoUrl.split("/").pop() || "repository";
   
   return {
@@ -156,72 +167,90 @@ const generateMockData = (repoUrl: string): Node => {
   };
 };
 
-const NodeComponent: React.FC<{ 
-  node: Node, 
-  level: number, 
-  onToggle: (id: string) => void 
-}> = ({ node, level, onToggle }) => {
-  const getNodeColor = () => {
-    switch (node.type) {
-      case 'directory':
-        return 'bg-blue-500/20 text-blue-300 border-blue-500/40';
-      case 'file':
-        return 'bg-green-500/20 text-green-300 border-green-500/40';
-      case 'function':
-        return 'bg-purple-500/20 text-purple-300 border-purple-500/40';
-      default:
-        return 'bg-gray-500/20 text-gray-300 border-gray-500/40';
-    }
-  };
-
-  const getNodeIcon = () => {
-    switch (node.type) {
-      case 'directory':
-        return '📁';
-      case 'file':
-        return '📄';
-      case 'function':
-        return '⚙️';
-      default:
-        return '📎';
-    }
-  };
-
-  const handleToggle = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (node.children.length > 0) {
-      onToggle(node.id);
-    }
-  };
-
-  return (
-    <div className="flex flex-col" style={{ marginLeft: `${level * 20}px` }}>
-      <div 
-        className={`flex items-center p-2 my-1 rounded-md cursor-pointer border ${getNodeColor()} transition-colors hover:bg-opacity-30`}
-        onClick={handleToggle}
-      >
-        {node.children.length > 0 && (
-          <span className="mr-2 text-xs">{node.collapsed ? '▶️' : '🔽'}</span>
-        )}
-        <span className="mr-2">{getNodeIcon()}</span>
-        <span>{node.label}</span>
-      </div>
+// Convert RepoNode structure to ReactFlow nodes and edges
+const convertToFlowElements = (repoData: RepoNode | null): { nodes: Node[], edges: Edge[] } => {
+  if (!repoData) return { nodes: [], edges: [] };
+  
+  const nodes: Node[] = [];
+  const edges: Edge[] = [];
+  
+  // Helper function to recursively process nodes
+  const processNode = (node: RepoNode, position: { x: number, y: number }, level: number = 0): void => {
+    // Add the current node
+    const nodeType = getNodeType(node.type);
+    nodes.push({
+      id: node.id,
+      data: { label: node.label, type: node.type },
+      type: nodeType,
+      position,
+      style: {
+        width: getNodeWidth(node.label, node.type),
+        padding: 10
+      }
+    });
+    
+    // If node has children and isn't collapsed, process them
+    if (node.children && node.children.length > 0 && !node.collapsed) {
+      const childCount = node.children.length;
+      const horizontalGap = 150;
+      const verticalGap = 100;
       
-      {!node.collapsed && node.children.map(childNode => (
-        <NodeComponent 
-          key={childNode.id} 
-          node={childNode} 
-          level={level + 1} 
-          onToggle={onToggle} 
-        />
-      ))}
-    </div>
-  );
+      // Calculate starting position for children
+      let startX = position.x - ((childCount - 1) * horizontalGap) / 2;
+      const childY = position.y + verticalGap;
+      
+      node.children.forEach((child, index) => {
+        const childPos = { x: startX + index * horizontalGap, y: childY };
+        processNode(child, childPos, level + 1);
+        
+        // Add edge from parent to child
+        edges.push({
+          id: `e${node.id}-${child.id}`,
+          source: node.id,
+          target: child.id,
+          animated: child.type === "function",
+          style: { stroke: getEdgeColor(child.type) }
+        });
+      });
+    }
+  };
+  
+  // Start processing from the root node
+  processNode(repoData, { x: 0, y: 0 });
+  
+  return { nodes, edges };
+};
+
+// Helper functions for node styling
+const getNodeType = (type: string): string => {
+  switch (type) {
+    case "directory": return "input";
+    case "file": return "default";
+    case "function": return "output";
+    default: return "default";
+  }
+};
+
+const getNodeWidth = (label: string, type: string): number => {
+  const baseWidth = 100;
+  const charWidth = 8;
+  return Math.max(baseWidth, label.length * charWidth);
+};
+
+const getEdgeColor = (type: string): string => {
+  switch (type) {
+    case "directory": return "#3b82f6";
+    case "file": return "#10b981";
+    case "function": return "#8b5cf6";
+    default: return "#94a3b8";
+  }
 };
 
 const MindMap: React.FC<MindMapProps> = ({ repoUrl }) => {
-  const [rootNode, setRootNode] = useState<Node | null>(null);
+  const [rootNode, setRootNode] = useState<RepoNode | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
     // Simulating data loading
@@ -229,12 +258,23 @@ const MindMap: React.FC<MindMapProps> = ({ repoUrl }) => {
     setTimeout(() => {
       const mockData = generateMockData(repoUrl);
       setRootNode(mockData);
+      
+      // Convert to ReactFlow format
+      const flowElements = convertToFlowElements(mockData);
+      setNodes(flowElements.nodes);
+      setEdges(flowElements.edges);
+      
       setLoading(false);
     }, 1000);
-  }, [repoUrl]);
+  }, [repoUrl, setNodes, setEdges]);
 
-  const handleNodeToggle = (nodeId: string) => {
-    const toggleNode = (node: Node): Node => {
+  const onConnect = useCallback(
+    (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
+    [setEdges]
+  );
+
+  const handleToggleNode = (nodeId: string) => {
+    const toggleNode = (node: RepoNode): RepoNode => {
       if (node.id === nodeId) {
         return { ...node, collapsed: !node.collapsed };
       }
@@ -250,7 +290,13 @@ const MindMap: React.FC<MindMapProps> = ({ repoUrl }) => {
     };
     
     if (rootNode) {
-      setRootNode(toggleNode(rootNode));
+      const updatedRootNode = toggleNode(rootNode);
+      setRootNode(updatedRootNode);
+      
+      // Update flow elements
+      const flowElements = convertToFlowElements(updatedRootNode);
+      setNodes(flowElements.nodes);
+      setEdges(flowElements.edges);
     }
   };
 
@@ -302,16 +348,20 @@ const MindMap: React.FC<MindMapProps> = ({ repoUrl }) => {
         </div>
       </div>
 
-      <div className="overflow-auto flex-grow p-4">
-        {rootNode && (
-          <div className="min-w-[600px]">
-            <NodeComponent 
-              node={rootNode} 
-              level={0} 
-              onToggle={handleNodeToggle} 
-            />
-          </div>
-        )}
+      <div className="flex-grow h-[500px] border rounded-md">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          fitView
+          attributionPosition="bottom-right"
+        >
+          <Controls />
+          <MiniMap />
+          <Background gap={12} size={1} />
+        </ReactFlow>
       </div>
     </div>
   );

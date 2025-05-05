@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+// Import the correct path for SyntaxHighlighter
 import SyntaxHighlighter from "react-syntax-highlighter";
 import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs";
 
@@ -162,7 +163,12 @@ const CodeScanningVisualization: React.FC<CodeScanningVisualizationProps> = ({
   const totalLines = currentSnippet.code.split('\n').length;
 
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      // Reset state when not active
+      setVisibleLines(0);
+      setScrollPosition(0);
+      return;
+    }
 
     // Change snippet every 8-12 seconds
     const snippetInterval = setInterval(() => {

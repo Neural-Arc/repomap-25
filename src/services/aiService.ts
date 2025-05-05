@@ -32,9 +32,9 @@ export const generateAIConversation = async (
   const repoOwner = repoData.repo.full_name.split('/')[0];
   const repoStats = extractRepoStats(repoData);
   
-  // If we have a Gemini API key, use it to generate the conversation
-  if (apiKey) {
-    try {
+  try {
+    // If we have a Gemini API key, use it to generate the conversation
+    if (apiKey) {
       updateProgress(40);
       
       // Prepare repository data for the Gemini API
@@ -59,17 +59,17 @@ export const generateAIConversation = async (
       // Complete analysis
       updateProgress(100);
       return messages;
-    } catch (error) {
-      console.error("Error calling Gemini API:", error);
-      // Fall back to mock data in case of error
-      return generateEnhancedMockConversation(repoData);
+    } else {
+      // No API key provided, generate mock conversation
+      updateProgress(60); // Simulate some progress
+      const mockMessages = generateEnhancedMockConversation(repoData);
+      updateProgress(100);
+      return mockMessages;
     }
-  } else {
-    // No API key provided, generate mock conversation
-    updateProgress(60); // Simulate some progress
-    const mockMessages = generateEnhancedMockConversation(repoData);
-    updateProgress(100);
-    return mockMessages;
+  } catch (error) {
+    console.error("Error generating AI conversation:", error);
+    // Fall back to mock data in case of error
+    return generateEnhancedMockConversation(repoData);
   }
 };
 
@@ -154,13 +154,16 @@ const parseGeminiResponse = (response: any, repoSummary: any): AIMessage[] => {
         const parsedMessages = JSON.parse(jsonStr);
         
         if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
-          // Ensure every message has the required fields
+          // Ensure every message has the required fields and correct agent type
           const validMessages = parsedMessages.filter(
             (msg: any) => msg.agent && msg.content
-          );
+          ).map((msg: any) => ({
+            agent: msg.agent as AIAgent, // Ensure type compatibility
+            content: msg.content
+          }));
           
           if (validMessages.length > 0) {
-            return validMessages as AIMessage[];
+            return validMessages;
           }
         }
       }
@@ -245,26 +248,26 @@ const generateEnhancedMockConversation = (repoData: RepoData | any): AIMessage[]
     Array.isArray(files) && files.some((f: any) => f.path.toLowerCase().includes('test') || f.path.toLowerCase().includes('spec'))
   );
   
-  // Create a detailed conversation
+  // Ensure the messages have the correct AIAgent type
   return [
     {
-      agent: "integrationExpert",
+      agent: "integrationExpert" as AIAgent,
       content: `I've completed my analysis of the ${repoOwner}/${repoName} repository. This ${language} project contains ${fileCount} files across ${dirCount} directories, with ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'}. The repository ${description !== "No description available" ? `is described as: "${description}"` : "doesn't have a description"}.`
     },
     {
-      agent: "alphaCodeExpert",
+      agent: "alphaCodeExpert" as AIAgent,
       content: `Looking at the code structure, I notice ${hasReadme ? "a README file which provides documentation" : "no README file, which would help with documentation"}. ${hasTests ? "I found test files, which is good for code quality." : "I didn't find any test files, which might indicate limited testing practices."} The primary language is ${language}, and the codebase appears to be ${fileCount > 50 ? "moderately complex" : "relatively simple"} based on file count. ${fileCount > 100 ? "Given the large number of files, I'd recommend reviewing the code organization for potential refactoring opportunities." : ""}`
     },
     {
-      agent: "mindMapSpecialist",
+      agent: "mindMapSpecialist" as AIAgent,
       content: `I've created a visual mind map of the repository structure that you can explore. The visualization shows the file hierarchy, directory organization, and key components. ${dirCount > 5 ? `I've noticed that the repository has ${dirCount} directories, which provides good separation of concerns.` : "The directory structure is relatively flat, which might make navigation easier but could potentially limit organization as the project grows."} You can click on any node in the mind map to see more details about each file or directory.`
     },
     {
-      agent: "alphaCodeExpert",
+      agent: "alphaCodeExpert" as AIAgent,
       content: `Based on the file extensions, I can see that this is ${language === "JavaScript" || language === "TypeScript" ? "a web application project" : language === "Python" ? "a Python-based project, likely for data science or backend services" : `a project primarily using ${language}`}. ${hasTests ? "The presence of tests indicates a focus on code quality and reliability." : "Adding tests would improve the code reliability."} I recommend exploring the documentation tab for more detailed information on the repository structure and component relationships.`
     },
     {
-      agent: "integrationExpert",
+      agent: "integrationExpert" as AIAgent,
       content: `To summarize our findings: this is a ${fileCount > 50 ? "medium-sized" : "small"} ${language} repository with ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'} and ${fileCount} files organized across ${dirCount} directories. ${hasReadme ? "It has documentation in the form of a README file." : "It would benefit from better documentation."} ${hasTests ? "It includes tests, which is a good practice." : "It lacks tests, which would improve code quality."} You can now browse the detailed mind map or view the documentation tab for more insights about the repository structure.`
     }
   ];

@@ -9,7 +9,9 @@ import { parseGitHubUrl, fetchRepositoryData, RepoData } from "@/services/github
 import { generateAIConversation } from "@/services/aiService";
 import CodeScanningVisualization from "./CodeScanningVisualization";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
+// Define proper types
 type AIAgent = "alphaCodeExpert" | "mindMapSpecialist" | "integrationExpert";
 
 interface Message {
@@ -71,6 +73,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
   const [showMessages, setShowMessages] = useState(false);
   const [resultsReady, setResultsReady] = useState(false);
   const [activeCodeVisPhase, setActiveCodeVisPhase] = useState("");
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   
   // Get the current active phase name
   const currentPhase = phases.find(phase => phase.status === 'in-progress')?.name || 
@@ -145,6 +148,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       setIsLoading(true);
       setShowMessages(false);
       setResultsReady(false);
+      setAnalysisError(null);
       
       // Parse the GitHub URL to get owner and repo
       const repoInfo = parseGitHubUrl(repoUrl);
@@ -157,6 +161,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
           }
         ]);
         setIsLoading(false);
+        setAnalysisError("Invalid GitHub URL");
         return;
       }
       
@@ -188,9 +193,23 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       };
       
       try {
+        // Show analysis starting message
+        const initialMessage: Message = {
+          agent: "integrationExpert" as AIAgent,
+          content: `Starting analysis of ${repoInfo.owner}/${repoInfo.repo}. Connecting to GitHub API...`
+        };
+        setMessages([initialMessage]);
+        
         // Fetch repository data with progress tracking
         const data = await fetchRepositoryData(repoUrl, gitHubApiKey, progressCallback);
         setRepoData(data);
+        
+        if (!data) {
+          toast.error("Failed to fetch repository data. Check the URL and your API keys.");
+          setAnalysisError("Repository data fetch failed");
+          setIsLoading(false);
+          return;
+        }
         
         // Mark phase 1 as complete
         updatePhaseStatus(0, 'completed');
@@ -199,74 +218,59 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         // Start phase 2 - code analysis
         updatePhaseStatus(1, 'in-progress');
         
-        if (data) {
-          // Generate AI conversation based on the repository data
-          const progressPhase2 = (progress: number) => {
-            updatePhaseProgress(1, progress);
-          };
+        // Generate AI conversation based on the repository data
+        const progressPhase2 = (progress: number) => {
+          updatePhaseProgress(1, progress);
+        };
+        
+        // Generate the AI conversation
+        const aiMessages = await generateAIConversation(repoUrl, data, geminiApiKey, progressPhase2);
+        
+        // Mark phase 2 as complete
+        updatePhaseStatus(1, 'completed');
+        updatePhaseProgress(1, 100);
+        
+        // Start phase 3 - visualization
+        updatePhaseStatus(2, 'in-progress');
+        
+        // Simulate visualization generation (will be replaced with actual visualization in a real implementation)
+        setTimeout(() => {
+          updatePhaseProgress(2, 100);
+          updatePhaseStatus(2, 'completed');
           
-          // Message for starting the analysis
-          const initialMessage: Message = {
-            agent: "integrationExpert" as AIAgent,
-            content: `Starting analysis of ${repoInfo.owner}/${repoInfo.repo}. Connecting to GitHub API...`
-          };
+          // Start phase 4 - preparing conversation
+          updatePhaseStatus(3, 'in-progress');
           
-          // Set the initial message temporarily while we generate the visualization
-          setMessages([initialMessage]);
+          // Replace the initial "Starting analysis" message with the real conversation
+          setMessages(aiMessages);
           
-          const aiMessages = await generateAIConversation(repoUrl, data, geminiApiKey, progressPhase2);
-          
-          // Mark phase 2 as complete
-          updatePhaseStatus(1, 'completed');
-          updatePhaseProgress(1, 100);
-          
-          // Start phase 3 - visualization
-          updatePhaseStatus(2, 'in-progress');
-          
-          // Simulate visualization generation (will be replaced with actual visualization in a real implementation)
+          // Wait a bit before finalizing phase 4
           setTimeout(() => {
-            updatePhaseProgress(2, 100);
-            updatePhaseStatus(2, 'completed');
+            updatePhaseProgress(3, 100);
+            updatePhaseStatus(3, 'completed');
             
-            // Start phase 4 - preparing conversation
-            updatePhaseStatus(3, 'in-progress');
+            // Mark analysis as complete but don't show messages yet
+            setAnalysisComplete(true);
             
-            // Replace the initial "Starting analysis" message with the real conversation
-            setMessages(aiMessages);
-            
-            // Wait a bit before finalizing phase 4
+            // Wait a little bit before showing the messages to ensure smooth transition
             setTimeout(() => {
-              updatePhaseProgress(3, 100);
-              updatePhaseStatus(3, 'completed');
-              
-              // Mark analysis as complete but don't show messages yet
-              setAnalysisComplete(true);
-              
-              // Wait a little bit before showing the messages to ensure smooth transition
-              setTimeout(() => {
-                setShowMessages(true);
-              }, 1000);
-            }, 1500);
-          }, 2000);
-        } else {
-          // Set error message if data fetch failed
-          setMessages([
-            {
-              agent: "integrationExpert" as AIAgent,
-              content: "There was an error fetching repository data. Please check the repository URL and your API keys."
-            }
-          ]);
-          setIsLoading(false);
-        }
+              setShowMessages(true);
+            }, 1000);
+          }, 1500);
+        }, 2000);
       } catch (error) {
         console.error("Error in AI conversation:", error);
+        const errorMsg = error instanceof Error ? error.message : "Unknown error occurred";
+        
         setMessages([
           {
             agent: "integrationExpert" as AIAgent,
-            content: `Analysis error: ${error instanceof Error ? error.message : "Unknown error occurred"}`
+            content: `Analysis error: ${errorMsg}`
           }
         ]);
         setIsLoading(false);
+        setAnalysisError(errorMsg);
+        toast.error(`Analysis error: ${errorMsg}`);
       }
     };
     
@@ -384,7 +388,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
           </div>
           
           {/* Code scanning visualization */}
-          {isLoading && phases.some(p => p.status === 'in-progress') && (
+          {(isLoading && phases.some(p => p.status === 'in-progress')) && (
             <div className="mt-4">
               <CodeScanningVisualization 
                 active={phases.some(p => p.status === 'in-progress')}
@@ -431,7 +435,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       <div ref={messagesEndRef} />
       
       {/* Show loading state when no messages are visible yet */}
-      {(!showMessages || visibleIndex < 0) && isLoading && (
+      {(!showMessages || visibleIndex < 0) && isLoading && !analysisError && (
         <div className="flex flex-col items-center justify-center py-10 text-center">
           <div className="relative">
             <Loader className="h-10 w-10 animate-spin text-primary" />
@@ -456,7 +460,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       )}
       
       {/* Show transition message when analysis is complete but conversation hasn't started */}
-      {analysisComplete && !isLoading && !showMessages && (
+      {analysisComplete && !isLoading && !showMessages && !analysisError && (
         <div className="flex flex-col items-center justify-center py-10 text-center animate-fade-in">
           <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
           <span className="text-lg font-medium mb-2">Analysis Complete!</span>
@@ -468,7 +472,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       )}
       
       {/* Show error state when analysis fails */}
-      {!isLoading && messages.length === 1 && messages[0].content.includes("error") && (
+      {analysisError && (
         <div className="flex flex-col items-center justify-center py-10 text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
           <span className="text-lg font-medium mb-2">Analysis Failed</span>
@@ -476,6 +480,9 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
             We encountered an error while analyzing the repository.
             Please check the URL and try again.
           </p>
+          <div className="mt-4 p-3 bg-red-500/10 rounded-md text-red-500 text-sm">
+            {analysisError}
+          </div>
         </div>
       )}
     </div>

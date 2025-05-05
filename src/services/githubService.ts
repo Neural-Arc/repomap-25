@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 
 interface GitHubFile {
@@ -67,11 +68,12 @@ export interface RepoStats {
   branches: number;
   totalFiles: number;
   description: string;
-  repo?: {
+  // Make sure these properties are not optional
+  repo: {
     name: string;
     full_name: string;
   };
-  commits?: number;
+  commits: number;
 }
 
 // Type for progress tracking callback - now with optional phase parameter
@@ -400,6 +402,7 @@ export const extractRepoStats = (repoData: RepoData): RepoStats => {
     branches: branches.length,
     totalFiles,
     description: repo.description || "No description provided",
+    // Ensure these properties are always present
     repo: {
       name: repo.name,
       full_name: repo.full_name

@@ -47,7 +47,7 @@ const agentConfig = {
 
 const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) => {
   const { geminiApiKey, gitHubApiKey } = useApi();
-  const [visibleIndex, setVisibleIndex] = useState(0);
+  const [visibleIndex, setVisibleIndex] = useState(-1); // Start at -1 to not show any messages until analysis is complete
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
@@ -56,6 +56,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
   const [analysisStartTime] = useState(Date.now());
   const [repoData, setRepoData] = useState<RepoData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [analysisComplete, setAnalysisComplete] = useState(false);
   const [apiCallsCompleted, setApiCallsCompleted] = useState(0);
   const [totalApiCalls, setTotalApiCalls] = useState(0);
   const [phases, setPhases] = useState<AnalysisPhase[]>([
@@ -92,8 +93,19 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     setProgress(Math.min(99, Math.round(weightedProgress)));
   }, [phases]);
   
+  // Only start showing messages when analysis is complete
+  useEffect(() => {
+    if (analysisComplete && visibleIndex === -1 && messages.length > 0) {
+      // Add a small delay before starting the conversation
+      setTimeout(() => {
+        setVisibleIndex(0);
+      }, 1000);
+    }
+  }, [analysisComplete, messages, visibleIndex]);
+  
   // Step 1: Fetch repository data and update progress
   useEffect(() => {
+    // Fetch real data from GitHub API
     const fetchData = async () => {
       setIsLoading(true);
       
@@ -111,7 +123,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         return;
       }
       
-      // Start with initial messages
+      // Initial message to show analysis is starting
       setMessages([
         {
           agent: "integrationExpert",
@@ -165,7 +177,6 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
           };
           
           const aiMessages = await generateAIConversation(repoUrl, data, geminiApiKey, progressPhase2);
-          setMessages(aiMessages);
           
           // Mark phase 2 as complete
           updatePhaseStatus(1, 'completed');
@@ -173,9 +184,18 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
           
           // Start phase 3 - visualization
           updatePhaseStatus(2, 'in-progress');
+          
+          // Simulate visualization generation (will be replaced with actual visualization in a real implementation)
           setTimeout(() => {
             updatePhaseProgress(2, 100);
             updatePhaseStatus(2, 'completed');
+            
+            // Replace the initial "Starting analysis" message with the real conversation
+            setMessages(aiMessages);
+            
+            // Mark analysis as complete
+            setIsLoading(false);
+            setAnalysisComplete(true);
           }, 1500);
         } else {
           // Set error message if data fetch failed
@@ -185,6 +205,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
               content: "There was an error fetching repository data. Please check the repository URL and your API keys."
             }
           ]);
+          setIsLoading(false);
         }
       } catch (error) {
         console.error("Error in AI conversation:", error);
@@ -194,7 +215,6 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
             content: `Analysis error: ${error instanceof Error ? error.message : "Unknown error occurred"}`
           }
         ]);
-      } finally {
         setIsLoading(false);
       }
     };
@@ -228,10 +248,10 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     if (visibleIndex < messages.length - 1) {
       setTimeout(() => {
         setVisibleIndex(prev => prev + 1);
-      }, 800); // Delay between messages
+      }, 1200); // Increased delay between messages for better readability
     } else {
-      setProgress(100); // Set to 100% when all messages are displayed
       setTimeout(() => {
+        setProgress(100); // Set to 100% when all messages are displayed
         onComplete();
       }, 1500); // Delay before completing the conversation
     }
@@ -292,7 +312,8 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         </div>
       </div>
 
-      {messages.slice(0, visibleIndex + 1).map((message, index) => {
+      {/* Only show messages after analysis is complete and visibleIndex >= 0 */}
+      {visibleIndex >= 0 && messages.slice(0, visibleIndex + 1).map((message, index) => {
         const agent = agentConfig[message.agent];
 
         return (
@@ -301,6 +322,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
             className={`flex items-start space-x-4 animate-fade-in ${
               index === visibleIndex ? "opacity-100" : "opacity-90"
             }`}
+            style={{ animationDelay: `${index * 0.2}s` }}
           >
             <Avatar className={`${agent.color} text-xl`}>
               <span>{agent.avatar}</span>
@@ -311,7 +333,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
                 {index === visibleIndex ? (
                   <TypeWriter
                     text={message.content}
-                    speed={20}
+                    speed={30} // Slower typing speed for better readability
                     onComplete={handleMessageComplete}
                     className="text-sm"
                   />
@@ -325,10 +347,16 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       })}
       <div ref={messagesEndRef} />
       
-      {messages.length === 0 && isLoading && (
+      {/* Show loading state when no messages are visible yet */}
+      {visibleIndex < 0 && isLoading && (
         <div className="flex justify-center items-center py-10">
           <Loader className="h-6 w-6 animate-spin text-primary mr-2" />
-          <span>Analyzing repository structure...</span>
+          <span>{
+            phases[0].status === 'in-progress' ? "Analyzing repository structure..." :
+            phases[1].status === 'in-progress' ? "Processing code patterns..." :
+            phases[2].status === 'in-progress' ? "Generating visualization..." :
+            "Preparing analysis results..."
+          }</span>
         </div>
       )}
     </div>

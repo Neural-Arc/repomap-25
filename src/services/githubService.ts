@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 
 interface GitHubFile {
@@ -68,6 +67,11 @@ export interface RepoStats {
   branches: number;
   totalFiles: number;
   description: string;
+  repo?: {
+    name: string;
+    full_name: string;
+  };
+  commits?: number;
 }
 
 // Type for progress tracking callback - now with optional phase parameter
@@ -382,6 +386,9 @@ export const extractRepoStats = (repoData: RepoData): RepoStats => {
     totalFiles += fileList.filter(file => file.type === "file").length;
   });
   
+  // Generate a mock commits count (since we don't have a real one in the API response)
+  const mockCommits = contributors.reduce((sum, contributor) => sum + contributor.contributions, 0);
+  
   return {
     stars: repo.stargazers_count,
     forks: repo.forks_count,
@@ -392,7 +399,12 @@ export const extractRepoStats = (repoData: RepoData): RepoStats => {
     language: repo.language || "Not specified",
     branches: branches.length,
     totalFiles,
-    description: repo.description || "No description provided"
+    description: repo.description || "No description provided",
+    repo: {
+      name: repo.name,
+      full_name: repo.full_name
+    },
+    commits: mockCommits
   };
 };
 

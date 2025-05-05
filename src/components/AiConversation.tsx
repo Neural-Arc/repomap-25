@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import TypeWriter from "./TypeWriter";
@@ -114,10 +113,10 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       // Parse the GitHub URL to get owner and repo
       const repoInfo = parseGitHubUrl(repoUrl);
       if (!repoInfo) {
-        // Add error message to conversation
+        // Add error message to conversation - Fix the type error by using a proper AIAgent type
         setMessages([
           {
-            agent: "integrationExpert",
+            agent: "integrationExpert" as AIAgent, // Explicitly cast to AIAgent type
             content: "I couldn't parse the GitHub URL. Please check the format and try again."
           }
         ]);
@@ -179,8 +178,8 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
           // Start phase 3 - visualization
           updatePhaseStatus(2, 'in-progress');
           
-          // Message for starting the analysis
-          const initialMessage = {
+          // Message for starting the analysis - Fix the type error by using a proper AIAgent type
+          const initialMessage: Message = {
             agent: "integrationExpert",
             content: `Starting analysis of ${repoInfo.owner}/${repoInfo.repo}. Connecting to GitHub API...`
           };
@@ -206,7 +205,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
             }, 1000);
           }, 1500);
         } else {
-          // Set error message if data fetch failed
+          // Set error message if data fetch failed - Fix the type error
           setMessages([
             {
               agent: "integrationExpert",

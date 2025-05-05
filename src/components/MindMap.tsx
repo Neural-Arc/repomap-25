@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -22,7 +21,8 @@ import ReactFlow, {
   NodeMouseHandler,
   BackgroundVariant,
   MarkerType,
-  useReactFlow
+  useReactFlow,
+  ReactFlowProvider
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useApi } from "@/contexts/ApiContext";
@@ -366,7 +366,8 @@ const getEdgeColor = (type: string): string => {
   }
 };
 
-const MindMap: React.FC<MindMapProps> = ({ repoUrl }) => {
+// The main component that uses React Flow hooks
+const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
   const { gitHubApiKey } = useApi();
   const [rootNode, setRootNode] = useState<RepoNode | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -796,6 +797,15 @@ const MindMap: React.FC<MindMapProps> = ({ repoUrl }) => {
         </div>
       )}
     </div>
+  );
+};
+
+// Wrapper component that provides the ReactFlowProvider
+const MindMap: React.FC<MindMapProps> = (props) => {
+  return (
+    <ReactFlowProvider>
+      <MindMapContent {...props} />
+    </ReactFlowProvider>
   );
 };
 

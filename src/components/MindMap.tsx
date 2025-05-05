@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, Share, ZoomIn, ZoomOut } from "lucide-react";
@@ -192,8 +193,8 @@ const convertToFlowElements = (repoData: RepoNode | null): { nodes: Node[], edge
     // If node has children and isn't collapsed, process them
     if (node.children && node.children.length > 0 && !node.collapsed) {
       const childCount = node.children.length;
-      const horizontalGap = 150;
-      const verticalGap = 100;
+      const horizontalGap = 180; // Increased spacing between nodes horizontally
+      const verticalGap = 120; // Increased spacing between nodes vertically
       
       // Calculate starting position for children
       let startX = position.x - ((childCount - 1) * horizontalGap) / 2;
@@ -348,7 +349,7 @@ const MindMap: React.FC<MindMapProps> = ({ repoUrl }) => {
         </div>
       </div>
 
-      <div className="flex-grow h-[500px] border rounded-md">
+      <div className="flex-grow h-[650px] border rounded-md"> {/* Increased height */}
         <ReactFlow
           nodes={nodes}
           edges={edges}

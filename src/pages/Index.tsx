@@ -7,6 +7,8 @@ import { useApi } from "@/contexts/ApiContext";
 import SettingsDialog from "@/components/SettingsDialog";
 import AiConversation from "@/components/AiConversation";
 import MindMap from "@/components/MindMap";
+import RepoDocumentation from "@/components/RepoDocumentation";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
 type AppState = "input" | "analyzing" | "result";
@@ -17,6 +19,7 @@ const Index = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [appState, setAppState] = useState<AppState>("input");
   const [analyzedRepo, setAnalyzedRepo] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("mindmap");
 
   const isValidGithubUrl = (url: string): boolean => {
     const regex = /^https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/;
@@ -101,7 +104,23 @@ const Index = () => {
 
         {appState === "result" && analyzedRepo && (
           <div className="container flex-grow flex flex-col py-8">
-            <MindMap repoUrl={analyzedRepo} />
+            <Tabs 
+              defaultValue="mindmap" 
+              value={activeTab} 
+              onValueChange={setActiveTab}
+              className="w-full"
+            >
+              <TabsList className="mb-6">
+                <TabsTrigger value="mindmap">Mind Map</TabsTrigger>
+                <TabsTrigger value="documentation">Documentation</TabsTrigger>
+              </TabsList>
+              <TabsContent value="mindmap" className="mt-0 flex-grow">
+                <MindMap repoUrl={analyzedRepo} />
+              </TabsContent>
+              <TabsContent value="documentation" className="mt-0 flex-grow overflow-y-auto">
+                <RepoDocumentation repoUrl={analyzedRepo} />
+              </TabsContent>
+            </Tabs>
 
             <div className="mt-8 text-center">
               <Button 

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import TypeWriter from "./TypeWriter";
+import { Progress } from "@/components/ui/progress";
 
 type AIAgent = "codeExpert" | "mindMapSpecialist" | "integrationAgent";
 
@@ -80,6 +81,10 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
   const [visibleIndex, setVisibleIndex] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [progress, setProgress] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [analysisStartTime] = useState(Date.now());
+  const estimatedTimeSeconds = 30; // Estimate 30 seconds for full analysis
   
   useEffect(() => {
     // Generate conversation based on repo URL
@@ -90,12 +95,32 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [visibleIndex]);
   
+  useEffect(() => {
+    // Update progress and time remaining
+    const interval = setInterval(() => {
+      const elapsedTime = (Date.now() - analysisStartTime) / 1000;
+      const newProgress = Math.min(Math.floor((elapsedTime / estimatedTimeSeconds) * 100), 99);
+      
+      // Don't reach 100% until actually complete
+      if (visibleIndex < messages.length - 1) {
+        setProgress(newProgress);
+        
+        // Calculate time remaining
+        const remainingTime = Math.max(Math.ceil(estimatedTimeSeconds - elapsedTime), 1);
+        setTimeRemaining(remainingTime);
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [analysisStartTime, messages.length, visibleIndex]);
+  
   const handleMessageComplete = () => {
     if (visibleIndex < messages.length - 1) {
       setTimeout(() => {
         setVisibleIndex(prev => prev + 1);
       }, 800); // Delay between messages
     } else {
+      setProgress(100); // Set to 100% when all messages are displayed
       setTimeout(() => {
         onComplete();
       }, 1500); // Delay before completing the conversation
@@ -108,10 +133,13 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         <h2 className="text-lg font-medium text-muted-foreground">
           AI Analysis in Progress
         </h2>
-        <div className="mt-2 flex items-center justify-center space-x-2">
-          <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-          <div className="w-2 h-2 rounded-full bg-primary animate-pulse delay-150"></div>
-          <div className="w-2 h-2 rounded-full bg-primary animate-pulse delay-300"></div>
+        
+        <div className="mt-4 space-y-3">
+          <Progress value={progress} className="h-2" />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>{progress}% complete</span>
+            <span>Estimated time remaining: {timeRemaining} seconds</span>
+          </div>
         </div>
       </div>
 

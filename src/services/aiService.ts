@@ -62,11 +62,14 @@ export const generateAIConversation = async (
     } catch (error) {
       console.error("Error calling Gemini API:", error);
       // Fall back to mock data in case of error
-      return generateMockConversation(repoData);
+      return generateEnhancedMockConversation(repoData);
     }
   } else {
     // No API key provided, generate mock conversation
-    return generateMockConversation(repoData);
+    updateProgress(60); // Simulate some progress
+    const mockMessages = generateEnhancedMockConversation(repoData);
+    updateProgress(100);
+    return mockMessages;
   }
 };
 
@@ -85,7 +88,7 @@ const callGeminiAPI = async (apiKey: string, repoSummary: any): Promise<any> => 
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Analyze this GitHub repository and provide insights about its structure, code organization, and potential improvements. Format your response as a conversation between three AI agents:
+            text: `Analyze this GitHub repository and provide detailed insights about its structure, code organization, and potential improvements. Format your response as a conversation between three AI agents:
             
             Repository Information:
             Name: ${repoSummary.name}
@@ -111,7 +114,7 @@ const callGeminiAPI = async (apiKey: string, repoSummary: any): Promise<any> => 
               {"agent": "integrationExpert", "content": "..."}
             ]
             
-            Keep responses concise and actionable. The conversation should have 4-5 messages total.`
+            Make the conversation informative, detailed, and professional. Provide specific insights about the repository structure, potential code quality issues, and recommendations for improvements. The conversation should have 4-6 messages total.`
           }]
         }],
         generationConfig: {
@@ -165,10 +168,10 @@ const parseGeminiResponse = (response: any, repoSummary: any): AIMessage[] => {
     
     // If we couldn't parse proper messages, fall back to mock data
     console.warn("Could not parse valid messages from Gemini API response, using fallback");
-    return generateMockConversation(repoSummary);
+    return generateEnhancedMockConversation(repoSummary);
   } catch (error) {
     console.error("Error parsing Gemini API response:", error);
-    return generateMockConversation(repoSummary);
+    return generateEnhancedMockConversation(repoSummary);
   }
 };
 
@@ -214,9 +217,9 @@ const getDirectoryStructureSummary = (repoData: RepoData): string => {
 };
 
 /**
- * Generate mock conversation when API is not available
+ * Generate enhanced mock conversation with more detailed analysis
  */
-const generateMockConversation = (repoData: RepoData | any): AIMessage[] => {
+const generateEnhancedMockConversation = (repoData: RepoData | any): AIMessage[] => {
   // Extract repo name and other details from either RepoData or summary object
   const repoName = repoData.repo?.name || repoData.name || "repository";
   const repoOwner = repoData.repo?.full_name?.split('/')[0] || repoData.owner || "user";
@@ -228,24 +231,43 @@ const generateMockConversation = (repoData: RepoData | any): AIMessage[] => {
                      (typeof repoData.branchCount === 'number' ? repoData.branchCount : 1);
   
   const language = repoData.repo?.language || repoData.topLanguage || "not specified";
+  const description = repoData.repo?.description || "No description available";
   
-  // Create a conversation
+  // Count directories
+  const dirCount = Object.keys(repoData.files || {}).length;
+  
+  // Check for common files
+  const hasReadme = Object.values(repoData.files || {}).some((files: any) => 
+    Array.isArray(files) && files.some((f: any) => f.path.toLowerCase().includes('readme'))
+  );
+  
+  const hasTests = Object.values(repoData.files || {}).some((files: any) => 
+    Array.isArray(files) && files.some((f: any) => f.path.toLowerCase().includes('test') || f.path.toLowerCase().includes('spec'))
+  );
+  
+  // Create a detailed conversation
   return [
     {
       agent: "integrationExpert",
-      content: `I've completed my analysis of the ${repoOwner}/${repoName} repository. Here's what I found.`
+      content: `I've completed my analysis of the ${repoOwner}/${repoName} repository. This ${language} project contains ${fileCount} files across ${dirCount} directories, with ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'}. The repository ${description !== "No description available" ? `is described as: "${description}"` : "doesn't have a description"}.`
     },
     {
       agent: "alphaCodeExpert",
-      content: `This repository has ${fileCount} files across multiple directories, with ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'}. The primary language is ${language}.`
+      content: `Looking at the code structure, I notice ${hasReadme ? "a README file which provides documentation" : "no README file, which would help with documentation"}. ${hasTests ? "I found test files, which is good for code quality." : "I didn't find any test files, which might indicate limited testing practices."} The primary language is ${language}, and the codebase appears to be ${fileCount > 50 ? "moderately complex" : "relatively simple"} based on file count. ${fileCount > 100 ? "Given the large number of files, I'd recommend reviewing the code organization for potential refactoring opportunities." : ""}`
     },
     {
       agent: "mindMapSpecialist",
-      content: `I've created a visual mind map of the repository structure. You can explore the file hierarchy, understand code organization, and identify key components.`
+      content: `I've created a visual mind map of the repository structure that you can explore. The visualization shows the file hierarchy, directory organization, and key components. ${dirCount > 5 ? `I've noticed that the repository has ${dirCount} directories, which provides good separation of concerns.` : "The directory structure is relatively flat, which might make navigation easier but could potentially limit organization as the project grows."} You can click on any node in the mind map to see more details about each file or directory.`
+    },
+    {
+      agent: "alphaCodeExpert",
+      content: `Based on the file extensions, I can see that this is ${language === "JavaScript" || language === "TypeScript" ? "a web application project" : language === "Python" ? "a Python-based project, likely for data science or backend services" : `a project primarily using ${language}`}. ${hasTests ? "The presence of tests indicates a focus on code quality and reliability." : "Adding tests would improve the code reliability."} I recommend exploring the documentation tab for more detailed information on the repository structure and component relationships.`
     },
     {
       agent: "integrationExpert",
-      content: `You can now view the mind map or browse the documentation tab for more details about this repository's structure.`
+      content: `To summarize our findings: this is a ${fileCount > 50 ? "medium-sized" : "small"} ${language} repository with ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'} and ${fileCount} files organized across ${dirCount} directories. ${hasReadme ? "It has documentation in the form of a README file." : "It would benefit from better documentation."} ${hasTests ? "It includes tests, which is a good practice." : "It lacks tests, which would improve code quality."} You can now browse the detailed mind map or view the documentation tab for more insights about the repository structure.`
     }
   ];
 };
+
+export default generateAIConversation;

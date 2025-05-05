@@ -65,6 +65,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     { name: "Generating visualization", weight: 0.3, status: 'pending', progress: 0 }
   ]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [showMessages, setShowMessages] = useState(false); // New state to control when to show messages
   
   // Update elapsed time
   useEffect(() => {
@@ -93,21 +94,22 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     setProgress(Math.min(99, Math.round(weightedProgress)));
   }, [phases]);
   
-  // Only start showing messages when analysis is complete
+  // Only start showing messages when analysis is complete and we're ready to display
   useEffect(() => {
-    if (analysisComplete && visibleIndex === -1 && messages.length > 0) {
+    if (analysisComplete && showMessages && visibleIndex === -1 && messages.length > 0) {
       // Add a small delay before starting the conversation
       setTimeout(() => {
         setVisibleIndex(0);
       }, 1000);
     }
-  }, [analysisComplete, messages, visibleIndex]);
+  }, [analysisComplete, showMessages, messages, visibleIndex]);
   
   // Step 1: Fetch repository data and update progress
   useEffect(() => {
     // Fetch real data from GitHub API
     const fetchData = async () => {
       setIsLoading(true);
+      setShowMessages(false); // Reset message visibility
       
       // Parse the GitHub URL to get owner and repo
       const repoInfo = parseGitHubUrl(repoUrl);
@@ -122,14 +124,6 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         setIsLoading(false);
         return;
       }
-      
-      // Initial message to show analysis is starting
-      setMessages([
-        {
-          agent: "integrationExpert",
-          content: `Starting analysis of ${repoInfo.owner}/${repoInfo.repo}. Connecting to GitHub API...`
-        }
-      ]);
       
       // Update phase status
       updatePhaseStatus(0, 'in-progress');
@@ -185,6 +179,15 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
           // Start phase 3 - visualization
           updatePhaseStatus(2, 'in-progress');
           
+          // Message for starting the analysis
+          const initialMessage = {
+            agent: "integrationExpert",
+            content: `Starting analysis of ${repoInfo.owner}/${repoInfo.repo}. Connecting to GitHub API...`
+          };
+          
+          // Set the initial message temporarily while we generate the visualization
+          setMessages([initialMessage]);
+          
           // Simulate visualization generation (will be replaced with actual visualization in a real implementation)
           setTimeout(() => {
             updatePhaseProgress(2, 100);
@@ -193,9 +196,14 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
             // Replace the initial "Starting analysis" message with the real conversation
             setMessages(aiMessages);
             
-            // Mark analysis as complete
+            // Mark analysis as complete but don't show messages yet
             setIsLoading(false);
             setAnalysisComplete(true);
+            
+            // Wait a little bit before showing the messages to ensure smooth transition
+            setTimeout(() => {
+              setShowMessages(true);
+            }, 1000);
           }, 1500);
         } else {
           // Set error message if data fetch failed
@@ -248,7 +256,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     if (visibleIndex < messages.length - 1) {
       setTimeout(() => {
         setVisibleIndex(prev => prev + 1);
-      }, 1200); // Increased delay between messages for better readability
+      }, 1500); // Increased delay between messages for better readability
     } else {
       setTimeout(() => {
         setProgress(100); // Set to 100% when all messages are displayed
@@ -313,7 +321,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       </div>
 
       {/* Only show messages after analysis is complete and visibleIndex >= 0 */}
-      {visibleIndex >= 0 && messages.slice(0, visibleIndex + 1).map((message, index) => {
+      {showMessages && visibleIndex >= 0 && messages.slice(0, visibleIndex + 1).map((message, index) => {
         const agent = agentConfig[message.agent];
 
         return (
@@ -333,7 +341,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
                 {index === visibleIndex ? (
                   <TypeWriter
                     text={message.content}
-                    speed={30} // Slower typing speed for better readability
+                    speed={40} // Slower typing speed for better readability
                     onComplete={handleMessageComplete}
                     className="text-sm"
                   />
@@ -348,15 +356,31 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       <div ref={messagesEndRef} />
       
       {/* Show loading state when no messages are visible yet */}
-      {visibleIndex < 0 && isLoading && (
-        <div className="flex justify-center items-center py-10">
-          <Loader className="h-6 w-6 animate-spin text-primary mr-2" />
-          <span>{
+      {(!showMessages || visibleIndex < 0) && isLoading && (
+        <div className="flex flex-col items-center justify-center py-10 text-center">
+          <Loader className="h-6 w-6 animate-spin text-primary mb-4" />
+          <span className="text-lg font-medium mb-2">{
             phases[0].status === 'in-progress' ? "Analyzing repository structure..." :
             phases[1].status === 'in-progress' ? "Processing code patterns..." :
             phases[2].status === 'in-progress' ? "Generating visualization..." :
             "Preparing analysis results..."
           }</span>
+          <p className="text-sm text-muted-foreground max-w-md">
+            We're examining the codebase, analyzing patterns, and generating insights.
+            This may take a moment depending on the repository size.
+          </p>
+        </div>
+      )}
+      
+      {/* Show transition message when analysis is complete but conversation hasn't started */}
+      {analysisComplete && !isLoading && !showMessages && (
+        <div className="flex flex-col items-center justify-center py-10 text-center animate-fade-in">
+          <Activity className="h-8 w-8 text-primary mb-4" />
+          <span className="text-lg font-medium mb-2">Analysis Complete!</span>
+          <p className="text-sm text-muted-foreground max-w-md">
+            Our AI experts are preparing their insights about this repository.
+            The conversation will begin momentarily...
+          </p>
         </div>
       )}
     </div>

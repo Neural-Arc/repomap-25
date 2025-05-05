@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, Share, ZoomIn, ZoomOut } from "lucide-react";
+import { Download, Share, Folder, File } from "lucide-react";
 import { toast } from "sonner";
 import ReactFlow, {
   MiniMap,
@@ -15,158 +15,12 @@ import ReactFlow, {
   Node
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { useApi } from "@/contexts/ApiContext";
+import { RepoNode, fetchRepositoryData, convertRepoDataToNodes, getRepoDownloadUrl } from "@/services/githubService";
 
 interface MindMapProps {
   repoUrl: string;
 }
-
-interface RepoNode {
-  id: string;
-  label: string;
-  type: "directory" | "file" | "function";
-  children: RepoNode[];
-  collapsed?: boolean;
-}
-
-// Mock data generation for demonstration purposes
-const generateMockData = (repoUrl: string): RepoNode => {
-  const repoName = repoUrl.split("/").pop() || "repository";
-  
-  return {
-    id: "root",
-    label: repoName,
-    type: "directory",
-    collapsed: false,
-    children: [
-      {
-        id: "src",
-        label: "src",
-        type: "directory",
-        collapsed: false,
-        children: [
-          {
-            id: "components",
-            label: "components",
-            type: "directory",
-            collapsed: false,
-            children: [
-              {
-                id: "Header.jsx",
-                label: "Header.jsx",
-                type: "file",
-                children: [
-                  {
-                    id: "Header_function",
-                    label: "Header()",
-                    type: "function",
-                    children: []
-                  },
-                  {
-                    id: "toggleMenu_function",
-                    label: "toggleMenu()",
-                    type: "function",
-                    children: []
-                  }
-                ]
-              },
-              {
-                id: "Footer.jsx",
-                label: "Footer.jsx",
-                type: "file",
-                children: [
-                  {
-                    id: "Footer_function",
-                    label: "Footer()",
-                    type: "function",
-                    children: []
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            id: "utils",
-            label: "utils",
-            type: "directory",
-            collapsed: false,
-            children: [
-              {
-                id: "api.js",
-                label: "api.js",
-                type: "file",
-                children: [
-                  {
-                    id: "fetchData_function",
-                    label: "fetchData()",
-                    type: "function",
-                    children: []
-                  },
-                  {
-                    id: "postData_function",
-                    label: "postData()",
-                    type: "function",
-                    children: []
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            id: "App.jsx",
-            label: "App.jsx",
-            type: "file",
-            children: [
-              {
-                id: "App_function",
-                label: "App()",
-                type: "function",
-                children: []
-              },
-              {
-                id: "useEffect_hook",
-                label: "useEffect()",
-                type: "function",
-                children: []
-              }
-            ]
-          }
-        ]
-      },
-      {
-        id: "public",
-        label: "public",
-        type: "directory",
-        collapsed: true,
-        children: [
-          {
-            id: "index.html",
-            label: "index.html",
-            type: "file",
-            children: []
-          },
-          {
-            id: "favicon.ico",
-            label: "favicon.ico",
-            type: "file",
-            children: []
-          }
-        ]
-      },
-      {
-        id: "package.json",
-        label: "package.json",
-        type: "file",
-        children: []
-      },
-      {
-        id: "README.md",
-        label: "README.md",
-        type: "file",
-        children: []
-      }
-    ]
-  };
-};
 
 // Convert RepoNode structure to ReactFlow nodes and edges
 const convertToFlowElements = (repoData: RepoNode | null): { nodes: Node[], edges: Edge[] } => {
@@ -193,8 +47,8 @@ const convertToFlowElements = (repoData: RepoNode | null): { nodes: Node[], edge
     // If node has children and isn't collapsed, process them
     if (node.children && node.children.length > 0 && !node.collapsed) {
       const childCount = node.children.length;
-      const horizontalGap = 180; // Increased spacing between nodes horizontally
-      const verticalGap = 120; // Increased spacing between nodes vertically
+      const horizontalGap = 220; // Increased spacing between nodes horizontally
+      const verticalGap = 150; // Increased spacing between nodes vertically
       
       // Calculate starting position for children
       let startX = position.x - ((childCount - 1) * horizontalGap) / 2;
@@ -248,26 +102,43 @@ const getEdgeColor = (type: string): string => {
 };
 
 const MindMap: React.FC<MindMapProps> = ({ repoUrl }) => {
+  const { gitHubApiKey } = useApi();
   const [rootNode, setRootNode] = useState<RepoNode | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
-    // Simulating data loading
-    setLoading(true);
-    setTimeout(() => {
-      const mockData = generateMockData(repoUrl);
-      setRootNode(mockData);
+    // Fetch real data from GitHub API
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
       
-      // Convert to ReactFlow format
-      const flowElements = convertToFlowElements(mockData);
-      setNodes(flowElements.nodes);
-      setEdges(flowElements.edges);
-      
-      setLoading(false);
-    }, 1000);
-  }, [repoUrl, setNodes, setEdges]);
+      try {
+        const repoData = await fetchRepositoryData(repoUrl, gitHubApiKey);
+        
+        if (repoData) {
+          const rootNode = convertRepoDataToNodes(repoData);
+          setRootNode(rootNode);
+          
+          // Convert to ReactFlow format
+          const flowElements = convertToFlowElements(rootNode);
+          setNodes(flowElements.nodes);
+          setEdges(flowElements.edges);
+        } else {
+          setError("Failed to fetch repository data");
+        }
+      } catch (error) {
+        console.error("Error in MindMap component:", error);
+        setError("An error occurred while processing repository data");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [repoUrl, gitHubApiKey, setNodes, setEdges]);
 
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
@@ -302,12 +173,17 @@ const MindMap: React.FC<MindMapProps> = ({ repoUrl }) => {
   };
 
   const handleDownload = () => {
-    // In a real implementation, this would generate and download a file
-    toast.success("Mind map downloaded successfully!");
+    const downloadUrl = getRepoDownloadUrl(repoUrl);
+    
+    if (downloadUrl) {
+      window.open(downloadUrl, '_blank');
+      toast.success("Download started!");
+    } else {
+      toast.error("Could not generate download link");
+    }
   };
 
   const handleShare = () => {
-    // In a real implementation, this would generate a shareable link
     navigator.clipboard.writeText(window.location.href);
     toast.success("Share link copied to clipboard!");
   };
@@ -317,7 +193,20 @@ const MindMap: React.FC<MindMapProps> = ({ repoUrl }) => {
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <p className="mt-4 text-muted-foreground">Generating mind map...</p>
+          <p className="mt-4 text-muted-foreground">Fetching repository structure...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center text-center">
+          <p className="text-destructive text-lg mb-4">{error}</p>
+          <p className="text-muted-foreground">
+            Please make sure the repository exists and is public, or try adding a GitHub API key in settings.
+          </p>
         </div>
       </div>
     );
@@ -349,7 +238,7 @@ const MindMap: React.FC<MindMapProps> = ({ repoUrl }) => {
         </div>
       </div>
 
-      <div className="flex-grow h-[650px] border rounded-md"> {/* Increased height */}
+      <div className="flex-grow h-[650px] border rounded-md">
         <ReactFlow
           nodes={nodes}
           edges={edges}

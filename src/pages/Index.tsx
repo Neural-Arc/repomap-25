@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,14 @@ const Index = () => {
   const [appState, setAppState] = useState<AppState>("input");
   const [analyzedRepo, setAnalyzedRepo] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("mindmap");
+
+  // Check for missing API keys when component mounts
+  useEffect(() => {
+    if (!geminiApiKey && !gitHubApiKey) {
+      setIsSettingsOpen(true);
+      toast.info("Please configure your API keys to get started.");
+    }
+  }, [geminiApiKey, gitHubApiKey]);
 
   const isValidGithubUrl = (url: string): boolean => {
     const regex = /^https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/;
@@ -44,6 +52,20 @@ const Index = () => {
 
   const handleAnalysisComplete = () => {
     setAppState("result");
+  };
+
+  const handleApiKeyChange = () => {
+    // If we're already showing results, no need to prompt the user
+    if (appState === "result" && analyzedRepo) {
+      toast.info("API key updated. Refreshing repository data.");
+      // Force a small delay before re-analysis to ensure the key is saved
+      setTimeout(() => {
+        setAppState("analyzing");
+        setTimeout(() => {
+          setAppState("result");
+        }, 100);
+      }, 100);
+    }
   };
 
   return (
@@ -92,6 +114,12 @@ const Index = () => {
                   Analyze Repository
                 </Button>
               </div>
+              
+              {!gitHubApiKey && (
+                <p className="text-amber-500 text-sm">
+                  Note: Adding a GitHub API key in settings is recommended to avoid rate limits.
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -141,7 +169,11 @@ const Index = () => {
         </div>
       </footer>
 
-      <SettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
+      <SettingsDialog 
+        open={isSettingsOpen} 
+        onOpenChange={setIsSettingsOpen} 
+        onApiKeyChange={handleApiKeyChange} 
+      />
     </div>
   );
 };

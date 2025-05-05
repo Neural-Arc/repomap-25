@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,11 +18,13 @@ import { Separator } from "@/components/ui/separator";
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onApiKeyChange?: () => void; // Optional callback when API keys change
 }
 
 const SettingsDialog: React.FC<SettingsDialogProps> = ({
   open,
   onOpenChange,
+  onApiKeyChange,
 }) => {
   const { 
     geminiApiKey, 
@@ -36,28 +38,54 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const [inputGeminiKey, setInputGeminiKey] = useState(geminiApiKey || "");
   const [inputGitHubKey, setInputGitHubKey] = useState(gitHubApiKey || "");
 
+  // Update input fields when API keys change
+  useEffect(() => {
+    if (open) {
+      setInputGeminiKey(geminiApiKey || "");
+      setInputGitHubKey(gitHubApiKey || "");
+    }
+  }, [open, geminiApiKey, gitHubApiKey]);
+
   const handleSave = () => {
     let hasValidKeys = false;
+    let keysChanged = false;
     
-    if (inputGeminiKey.trim()) {
-      setGeminiApiKey(inputGeminiKey.trim());
-      hasValidKeys = true;
+    // Check if Gemini key has changed
+    if (inputGeminiKey.trim() !== (geminiApiKey || "")) {
+      keysChanged = true;
+      if (inputGeminiKey.trim()) {
+        setGeminiApiKey(inputGeminiKey.trim());
+        hasValidKeys = true;
+      } else if (geminiApiKey) {
+        // If field was cleared but had a previous value
+        clearGeminiApiKey();
+      }
     } else if (geminiApiKey) {
-      // If field was cleared but had a previous value
-      clearGeminiApiKey();
+      hasValidKeys = true;
     }
     
-    if (inputGitHubKey.trim()) {
-      setGitHubApiKey(inputGitHubKey.trim());
-      hasValidKeys = true;
+    // Check if GitHub key has changed
+    if (inputGitHubKey.trim() !== (gitHubApiKey || "")) {
+      keysChanged = true;
+      if (inputGitHubKey.trim()) {
+        setGitHubApiKey(inputGitHubKey.trim());
+        hasValidKeys = true;
+      } else if (gitHubApiKey) {
+        // If field was cleared but had a previous value
+        clearGitHubApiKey();
+      }
     } else if (gitHubApiKey) {
-      // If field was cleared but had a previous value
-      clearGitHubApiKey();
+      hasValidKeys = true;
     }
     
     if (hasValidKeys) {
       toast.success("API keys saved successfully");
       onOpenChange(false);
+      
+      // Notify parent component if keys have changed
+      if (keysChanged && onApiKeyChange) {
+        onApiKeyChange();
+      }
     } else {
       toast.error("Please enter at least one API key");
     }
@@ -67,12 +95,14 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setInputGeminiKey("");
     clearGeminiApiKey();
     toast.info("Gemini API key removed");
+    if (onApiKeyChange) onApiKeyChange();
   };
   
   const handleClearGitHub = () => {
     setInputGitHubKey("");
     clearGitHubApiKey();
     toast.info("GitHub API key removed");
+    if (onApiKeyChange) onApiKeyChange();
   };
 
   return (

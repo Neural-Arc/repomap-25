@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { 
   Download, Share, Folder, File, FileCode, Search, 
   Filter, ArrowDown, ArrowRight, Code, Calendar, 
-  User, Clock, GitCommit
+  User, Clock, GitCommit, X, ZoomIn, ZoomOut, Maximize
 } from "lucide-react";
 import { toast } from "sonner";
 import ReactFlow, {
@@ -40,6 +40,16 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetClose,
+} from "@/components/ui/sheet";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 
 interface MindMapProps {
   repoUrl: string;
@@ -66,7 +76,7 @@ interface FileDetailProps {
 const DirectoryNode = ({ data, isConnectable, id }: NodeProps) => {
   return (
     <div className="group">
-      <div className="px-3 py-2 shadow-md rounded-md border-2 border-blue-500/80 bg-gradient-to-br from-blue-800/30 to-blue-900/30 backdrop-blur-sm transition-all duration-300 group-hover:shadow-lg group-hover:shadow-blue-500/20 group-hover:scale-105">
+      <div className="px-4 py-3 shadow-md rounded-md border-2 border-blue-500/80 bg-gradient-to-br from-blue-800/30 to-blue-900/30 backdrop-blur-sm transition-all duration-300 group-hover:shadow-lg group-hover:shadow-blue-500/20 group-hover:scale-105 min-w-[120px]">
         <div className="flex items-center gap-2">
           <Folder className="text-blue-400 w-5 h-5" />
           <span className="font-medium text-sm text-blue-100">{data.label}</span>
@@ -111,7 +121,7 @@ const FileNode = ({ data, isConnectable, id }: NodeProps) => {
   
   return (
     <div className="group">
-      <div className="px-3 py-2 shadow-md rounded-md border-2 border-green-500/50 bg-gradient-to-br from-green-800/30 to-green-900/30 backdrop-blur-sm transition-all duration-300 group-hover:shadow-lg group-hover:shadow-green-500/20 group-hover:scale-105">
+      <div className="px-4 py-3 shadow-md rounded-md border-2 border-green-500/50 bg-gradient-to-br from-green-800/30 to-green-900/30 backdrop-blur-sm transition-all duration-300 group-hover:shadow-lg group-hover:shadow-green-500/20 group-hover:scale-105 min-w-[120px]">
         <div className="flex items-center gap-2">
           <FileCode className={`${fileColor} w-5 h-5`} />
           <span className="font-medium text-sm text-green-100">{data.label}</span>
@@ -129,9 +139,9 @@ const FileNode = ({ data, isConnectable, id }: NodeProps) => {
 const FunctionNode = ({ data, isConnectable, id }: NodeProps) => {
   return (
     <div className="group">
-      <div className="px-3 py-2 shadow-md rounded-md border-2 border-purple-500/50 bg-gradient-to-br from-purple-800/30 to-purple-900/30 backdrop-blur-sm transition-all duration-300 group-hover:shadow-lg group-hover:shadow-purple-500/20 group-hover:scale-105">
+      <div className="px-4 py-3 shadow-md rounded-md border-2 border-purple-500/50 bg-gradient-to-br from-purple-800/30 to-purple-900/30 backdrop-blur-sm transition-all duration-300 group-hover:shadow-lg group-hover:shadow-purple-500/20 group-hover:scale-105 min-w-[120px]">
         <div className="flex items-center gap-2">
-          <FileCode className="text-purple-400 w-5 h-5" />
+          <Code className="text-purple-400 w-5 h-5" />
           <span className="font-medium text-sm text-purple-100">{data.label}</span>
           <Badge variant="outline" className="text-[0.65rem] bg-purple-950/40 text-purple-200">
             func
@@ -171,105 +181,104 @@ const FileDetailsPanel: React.FC<FileDetailProps> = ({ node, onClose }) => {
   }, [node]);
   
   return (
-    <Card className="w-full max-w-md shadow-xl border-primary/20">
-      <CardHeader className="bg-gradient-to-r from-background to-primary/10">
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="flex items-center">
-              {node.data.type === "directory" ? (
-                <Folder className="mr-2 h-5 w-5 text-primary" />
-              ) : (
-                <FileCode className="mr-2 h-5 w-5 text-primary" />
-              )}
-              <CardTitle>{node.data.label}</CardTitle>
-            </div>
-            <CardDescription>{node.data.path || "Unknown path"}</CardDescription>
-          </div>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0 rounded-full">
-            &times;
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">Last Modified</div>
-            <div className="flex items-center">
-              <Clock className="mr-1 h-3 w-3 text-muted-foreground" />
-              <span className="text-sm">{mockData.lastModified}</span>
-            </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">Commits</div>
-            <div className="flex items-center">
-              <GitCommit className="mr-1 h-3 w-3 text-muted-foreground" />
-              <span className="text-sm">{mockData.commits}</span>
-            </div>
-          </div>
-          {node.data.type === "file" && (
-            <>
-              <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">Size</div>
-                <span className="text-sm">{mockData.size}</span>
-              </div>
-              <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">Lines</div>
-                <span className="text-sm">{mockData.lines}</span>
-              </div>
-            </>
-          )}
-        </div>
-        
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium">Contributors</h4>
-          <div className="flex flex-wrap gap-2">
-            {mockData.contributors.map((contributor, idx) => (
-              <div key={idx} className="flex items-center gap-1 bg-muted/30 px-2 py-1 rounded text-xs">
-                <User className="h-3 w-3" />
-                {contributor}
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        {node.data.type === "file" && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">Code Quality</h4>
-            <div className="flex justify-between text-xs">
-              <span>Quality Score</span>
-              <span>{mockData.quality}%</span>
-            </div>
-            <Progress value={mockData.quality} className="h-1" />
-          </div>
-        )}
-        
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium">Description</h4>
-          <p className="text-sm text-muted-foreground">{mockData.description}</p>
-        </div>
-        
-        {node.data.type === "file" && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">File Preview</h4>
-            {loading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-5/6" />
-                <Skeleton className="h-4 w-4/6" />
-              </div>
+    <ScrollArea className="h-full max-h-[calc(100vh-150px)]">
+      <div className="p-6">
+        <div className="flex justify-between items-start mb-6">
+          <div className="flex items-center">
+            {node.data.type === "directory" ? (
+              <Folder className="mr-2 h-6 w-6 text-primary" />
             ) : (
-              <div className="bg-muted/40 p-3 rounded-md overflow-auto max-h-32">
-                <pre className="text-xs whitespace-pre-wrap">{content}</pre>
+              <FileCode className="mr-2 h-6 w-6 text-primary" />
+            )}
+            <div>
+              <h2 className="text-xl font-semibold">{node.data.label}</h2>
+              <p className="text-muted-foreground">{node.data.path || "Unknown path"}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">Last Modified</div>
+              <div className="flex items-center">
+                <Clock className="mr-1 h-3 w-3 text-muted-foreground" />
+                <span className="text-sm">{mockData.lastModified}</span>
               </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">Commits</div>
+              <div className="flex items-center">
+                <GitCommit className="mr-1 h-3 w-3 text-muted-foreground" />
+                <span className="text-sm">{mockData.commits}</span>
+              </div>
+            </div>
+            {node.data.type === "file" && (
+              <>
+                <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground">Size</div>
+                  <span className="text-sm">{mockData.size}</span>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground">Lines</div>
+                  <span className="text-sm">{mockData.lines}</span>
+                </div>
+              </>
             )}
           </div>
-        )}
-      </CardContent>
-      <CardFooter className="bg-muted/20 border-t p-3 flex justify-between">
-        <Badge variant="outline">{node.data.type}</Badge>
-        {node.data.extension && <Badge>{node.data.extension}</Badge>}
-      </CardFooter>
-    </Card>
+          
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">Contributors</h4>
+            <div className="flex flex-wrap gap-2">
+              {mockData.contributors.map((contributor, idx) => (
+                <div key={idx} className="flex items-center gap-1 bg-muted/30 px-2 py-1 rounded text-xs">
+                  <User className="h-3 w-3" />
+                  {contributor}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {node.data.type === "file" && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium">Code Quality</h4>
+              <div className="flex justify-between text-xs">
+                <span>Quality Score</span>
+                <span>{mockData.quality}%</span>
+              </div>
+              <Progress value={mockData.quality} className="h-1" />
+            </div>
+          )}
+          
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">Description</h4>
+            <p className="text-sm text-muted-foreground">{mockData.description}</p>
+          </div>
+          
+          {node.data.type === "file" && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium">File Preview</h4>
+              {loading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-5/6" />
+                  <Skeleton className="h-4 w-4/6" />
+                </div>
+              ) : (
+                <div className="bg-muted/40 p-3 rounded-md overflow-auto max-h-48">
+                  <pre className="text-xs whitespace-pre-wrap">{content}</pre>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <div className="pt-4 flex justify-between">
+            <Badge variant="outline">{node.data.type}</Badge>
+            {node.data.extension && <Badge>{node.data.extension}</Badge>}
+          </div>
+        </div>
+      </div>
+    </ScrollArea>
   );
 };
 
@@ -304,8 +313,8 @@ const convertToFlowElements = (repoData: RepoNode | null): { nodes: Node[], edge
     // If node has children and isn't collapsed, process them
     if (node.children && node.children.length > 0 && !node.collapsed) {
       const childCount = node.children.length;
-      const horizontalGap = 220; // Increased spacing between nodes horizontally
-      const verticalGap = 150; // Increased spacing between nodes vertically
+      const horizontalGap = 280; // Increased spacing between nodes horizontally
+      const verticalGap = 180; // Increased spacing between nodes vertically
       
       // Calculate starting position for children
       let startX = position.x - ((childCount - 1) * horizontalGap) / 2;
@@ -353,7 +362,7 @@ const getNodeType = (type: string): string => {
 };
 
 const getNodeWidth = (label: string, type: string): number => {
-  const baseWidth = 100;
+  const baseWidth = 140;
   const charWidth = 8;
   return Math.max(baseWidth, label.length * charWidth);
 };
@@ -377,9 +386,10 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
-  const [detailNode, setDetailNode] = useState<Node | null>(null);
+  const [isDetailSheetOpen, setIsDetailSheetOpen] = useState<boolean>(false);
   const [filterType, setFilterType] = useState<string | null>(null);
   const [visibleFileTypes, setVisibleFileTypes] = useState<Set<string>>(new Set());
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
   const reactFlowInstance = useReactFlow();
 
   useEffect(() => {
@@ -413,12 +423,12 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
           // Give a small delay to ensure nodes are rendered before fitting view
           setTimeout(() => {
             reactFlowInstance.fitView({
-              padding: 0.3,
-              duration: 800,
+              padding: 0.5,
+              duration: 1000,
               minZoom: 0.5,
-              maxZoom: 1.5
+              maxZoom: 2,
             });
-          }, 100);
+          }, 300);
         } else {
           setError("Failed to fetch repository data");
         }
@@ -471,10 +481,10 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
       setNodes(flowElements.nodes);
       setEdges(flowElements.edges);
       
-      // Re-fit view after toggling
+      // Re-fit view after toggling with a smoother animation
       setTimeout(() => {
         reactFlowInstance.fitView({
-          padding: 0.3,
+          padding: 0.4,
           duration: 800
         });
       }, 100);
@@ -498,15 +508,15 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
   };
 
   const onNodeClick: NodeMouseHandler = useCallback((event, node) => {
-    setSelectedNode(prevNode => prevNode?.id === node.id ? null : node);
+    setSelectedNode(node);
     
     // If the node is clicked with Alt key, expand/collapse
     if (event.altKey && node.data.type === 'directory') {
       handleToggleNode(node.id);
+    } else {
+      // Open detailed view
+      setIsDetailSheetOpen(true);
     }
-    
-    // Open detailed view
-    setDetailNode(node);
   }, [handleToggleNode]);
 
   const zoomToNode = useCallback((nodeId: string) => {
@@ -519,6 +529,21 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
       });
     }
   }, [nodes, reactFlowInstance]);
+  
+  const handleZoomIn = () => {
+    reactFlowInstance.zoomIn({ duration: 300 });
+    setZoomLevel(prev => Math.min(prev + 0.25, reactFlowInstance.getZoom()));
+  };
+  
+  const handleZoomOut = () => {
+    reactFlowInstance.zoomOut({ duration: 300 });
+    setZoomLevel(prev => Math.max(prev - 0.25, reactFlowInstance.getZoom()));
+  };
+  
+  const handleResetView = () => {
+    reactFlowInstance.fitView({ duration: 800, padding: 0.4 });
+    setZoomLevel(reactFlowInstance.getZoom());
+  };
 
   // Filter nodes based on search term and filter type
   const filteredNodes = useMemo(() => {
@@ -549,7 +574,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full min-h-[600px]">
         <div className="flex flex-col items-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           <p className="mt-4 text-muted-foreground">Fetching repository structure...</p>
@@ -572,7 +597,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
   
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full min-h-[500px]">
         <div className="flex flex-col items-center text-center">
           <p className="text-destructive text-lg mb-4">{error}</p>
           <p className="text-muted-foreground">
@@ -609,7 +634,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
         </div>
       </div>
 
-      <div className="flex-grow h-[650px] border rounded-md relative overflow-hidden">
+      <div className="flex-grow h-[700px] border rounded-md relative overflow-hidden">
         <ReactFlow
           nodes={filteredNodes}
           edges={edges}
@@ -620,14 +645,14 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
           onNodeClick={onNodeClick}
           fitView
           fitViewOptions={{
-            padding: 0.3,
-            minZoom: 0.5,
-            maxZoom: 1.5,
-            duration: 800,
+            padding: 0.5,
+            minZoom: 0.4,
+            maxZoom: 2,
+            duration: 1000,
           }}
           attributionPosition="bottom-right"
           minZoom={0.2}
-          maxZoom={2}
+          maxZoom={3}
           defaultEdgeOptions={{ 
             type: 'smoothstep',
             animated: true,
@@ -635,8 +660,8 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
           }}
           className="bg-gradient-to-br from-black/30 to-primary/5"
         >
-          <Panel position="top-left" className="bg-background/90 p-2 rounded-md shadow-md border border-border">
-            <div className="flex items-center space-x-2 mb-2">
+          <Panel position="top-left" className="bg-background/90 p-3 rounded-md shadow-md border border-border">
+            <div className="flex items-center space-x-2 mb-3">
               <Search className="h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search files..."
@@ -645,7 +670,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
                 className="h-8 text-sm"
               />
             </div>
-            <div className="flex items-center space-x-1">
+            <div className="flex items-center space-x-1 flex-wrap gap-1">
               <Filter className="h-4 w-4 text-muted-foreground mr-1" />
               <Button
                 variant={!filterType ? "secondary" : "outline"}
@@ -702,17 +727,17 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
             </div>
           </Panel>
 
-          {selectedNode && !detailNode && (
-            <Panel position="bottom-right" className="bg-background/90 p-4 rounded-md shadow-md border border-border max-w-sm">
+          {selectedNode && !isDetailSheetOpen && (
+            <Panel position="bottom-center" className="bg-background/90 p-4 rounded-md shadow-md border border-border max-w-lg mb-4">
               <div className="flex justify-between items-start mb-2">
                 <h3 className="font-semibold">{selectedNode.data.label}</h3>
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-6 w-6 p-1" 
+                  className="h-6 w-6 p-0" 
                   onClick={() => setSelectedNode(null)}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <X size={14} />
                 </Button>
               </div>
               
@@ -752,7 +777,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
                     variant="outline" 
                     size="sm" 
                     className="text-xs h-7 flex-1"
-                    onClick={() => setDetailNode(selectedNode)} 
+                    onClick={() => setIsDetailSheetOpen(true)} 
                   >
                     View Details
                   </Button>
@@ -777,11 +802,35 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
             </Panel>
           )}
           
-          {detailNode && (
-            <Panel position="bottom-right" className="bg-transparent">
-              <FileDetailsPanel node={detailNode} onClose={() => setDetailNode(null)} />
-            </Panel>
-          )}
+          {/* Custom zoom controls */}
+          <Panel position="bottom-right" className="bg-background/90 p-2 rounded-md shadow-md border border-border mb-12 mr-12">
+            <div className="flex gap-1">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-8 w-8" 
+                onClick={handleZoomIn}
+              >
+                <ZoomIn size={16} />
+              </Button>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-8 w-8" 
+                onClick={handleZoomOut}
+              >
+                <ZoomOut size={16} />
+              </Button>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-8 w-8" 
+                onClick={handleResetView}
+              >
+                <Maximize size={16} />
+              </Button>
+            </div>
+          </Panel>
           
           <Controls className="bg-background/80 border border-border shadow-lg rounded-md" />
           <MiniMap 
@@ -796,48 +845,62 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
             className="!bg-background/10 !border-muted"
             style={{
               backgroundColor: 'transparent',
+              width: 140,
+              height: 100
             }}
           />
-          <Background color="#3b3b3b" gap={20} size={1.5} variant={BackgroundVariant.Dots} />
+          <Background color="#3b3b3b" gap={24} size={1.5} variant={BackgroundVariant.Dots} />
         </ReactFlow>
       </div>
       
-      {detailNode && (
-        <div className="mt-4 p-4 border rounded-md bg-muted/10">
-          <h3 className="text-lg font-medium mb-2">About {detailNode.data.label}</h3>
-          <div className="grid md:grid-cols-2 gap-6">
+      {/* Details sheet that slides in from the side */}
+      {selectedNode && (
+        <Sheet open={isDetailSheetOpen} onOpenChange={setIsDetailSheetOpen}>
+          <SheetContent side="right" className="w-full sm:max-w-lg p-0 overflow-hidden">
+            <SheetHeader className="border-b bg-muted/20 p-4">
+              <SheetTitle className="flex items-center gap-2">
+                {selectedNode.data.type === "directory" ? (
+                  <Folder className="h-5 w-5 text-primary" />
+                ) : (
+                  <FileCode className="h-5 w-5 text-primary" />
+                )}
+                {selectedNode.data.label}
+              </SheetTitle>
+              <SheetDescription>
+                {selectedNode.data.path || "Path not available"}
+              </SheetDescription>
+            </SheetHeader>
+            <FileDetailsPanel node={selectedNode} onClose={() => setIsDetailSheetOpen(false)} />
+          </SheetContent>
+        </Sheet>
+      )}
+      
+      {/* Quick tips card */}
+      <Card className="mt-6 border border-border/50 bg-muted/5">
+        <CardHeader className="pb-2 pt-4">
+          <CardTitle className="text-lg">Mind Map Tips</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <h4 className="text-sm font-medium mb-2">File Information</h4>
-              <p className="text-sm text-muted-foreground">
-                {detailNode.data.type === "directory" 
-                  ? `This directory organizes related code for ${detailNode.data.label} functionality. It may contain components, utilities, or resources used throughout the application.` 
-                  : `This file implements ${detailNode.data.label} functionality. It was likely created as part of the core system architecture and helps maintain separation of concerns.`}
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Badge>{detailNode.data.type}</Badge>
-                {detailNode.data.extension && <Badge variant="outline">.{detailNode.data.extension}</Badge>}
-                <Badge variant="secondary">Modified recently</Badge>
-              </div>
+              <p className="font-medium mb-1">Navigation:</p>
+              <ul className="list-disc list-inside pl-2 space-y-1">
+                <li>Click and drag to pan around</li>
+                <li>Use scroll wheel to zoom</li>
+                <li>Click on a node to see details</li>
+              </ul>
             </div>
             <div>
-              <h4 className="text-sm font-medium mb-2">Development Context</h4>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Created by: Repository maintainer</li>
-                <li>• Last modified: Recent commit</li>
-                <li>• Purpose: Core {detailNode.data.label} functionality</li>
-                <li>• Dependencies: Various system components</li>
+              <p className="font-medium mb-1">Keyboard Shortcuts:</p>
+              <ul className="list-disc list-inside pl-2 space-y-1">
+                <li>Alt + Click on directories to expand/collapse</li>
+                <li>Esc key to close any open panels</li>
+                <li>Search by typing in the search box</li>
               </ul>
             </div>
           </div>
-          
-          <div className="mt-4 p-3 bg-primary/10 rounded-md border border-primary/20 text-sm">
-            <p>
-              <strong>Tip:</strong> Click on nodes in the mind map to see more details about files and directories. 
-              Use the search box to find specific items. You can also filter by file type using the buttons above the map.
-            </p>
-          </div>
-        </div>
-      )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

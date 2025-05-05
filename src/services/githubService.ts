@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 
 interface GitHubFile {
@@ -69,8 +70,8 @@ export interface RepoStats {
   description: string;
 }
 
-// Type for progress tracking callback
-type ProgressCallback = (completed: number, total: number) => void;
+// Type for progress tracking callback - now with optional phase parameter
+type ProgressCallback = (completed: number, total: number, phase?: number) => void;
 
 /**
  * Extract repository owner and name from GitHub URL
@@ -91,7 +92,7 @@ export const parseGitHubUrl = (url: string): { owner: string; repo: string } | n
 };
 
 /**
- * Fetch repository information from GitHub API with progress tracking
+ * Fetch repository information from GitHub API with enhanced progress tracking
  */
 export const fetchRepositoryData = async (
   repoUrl: string,
@@ -117,6 +118,9 @@ export const fetchRepositoryData = async (
   let apiCallsCompleted = 0;
   let estimatedTotalApiCalls = 3; // Start with base API calls (repo, branches, contributors)
   
+  // Additional tracking information
+  let repositorySize = 0; // Will be updated once we have repo data
+  
   // Helper function to make API calls with progress tracking
   const fetchWithProgress = async <T>(url: string): Promise<T | null> => {
     try {
@@ -125,7 +129,8 @@ export const fetchRepositoryData = async (
       // Update progress after each API call
       apiCallsCompleted++;
       if (progressCallback) {
-        progressCallback(apiCallsCompleted, estimatedTotalApiCalls);
+        // Always pass phase 0 for repository structure fetching
+        progressCallback(apiCallsCompleted, estimatedTotalApiCalls, 0);
       }
       
       if (!response.ok) {
@@ -157,6 +162,15 @@ export const fetchRepositoryData = async (
     if (!repoData) return null;
     const mainBranch = repoData.default_branch;
 
+    // Update repository size based on repo data
+    // In a real API, we might get size info here - simulating for now
+    repositorySize = repoData.stargazers_count * 10; // Just a heuristic for demo purposes
+    
+    // Adjust estimated API calls based on repository size
+    const sizeFactor = repositorySize > 1000 ? 2 : 
+                      repositorySize > 500 ? 1.5 : 1;
+    estimatedTotalApiCalls = Math.ceil(estimatedTotalApiCalls * sizeFactor);
+
     // Fetch branches
     const branches = await fetchWithProgress<GitHubBranch[]>(
       `https://api.github.com/repos/${owner}/${repo}/branches`
@@ -165,7 +179,7 @@ export const fetchRepositoryData = async (
     // Update estimated total API calls based on repository size
     estimatedTotalApiCalls += Math.min(branches.length, 10); // Limit to 10 branches for estimation
     if (progressCallback) {
-      progressCallback(apiCallsCompleted, estimatedTotalApiCalls);
+      progressCallback(apiCallsCompleted, estimatedTotalApiCalls, 0);
     }
 
     // Fetch contributors
@@ -186,9 +200,14 @@ export const fetchRepositoryData = async (
     
     // Estimate additional API calls based on directory count
     const dirCount = rootContent.filter(item => item.type === "dir").length;
-    estimatedTotalApiCalls += Math.min(dirCount * 3, 30); // Rough estimate, max 30 additional calls
+    
+    // More accurate estimation based on directory count and repo size
+    const depthFactor = repositorySize > 1000 ? 4 : 
+                       repositorySize > 500 ? 3 : 2;
+    estimatedTotalApiCalls += Math.min(dirCount * depthFactor, 50); 
+    
     if (progressCallback) {
-      progressCallback(apiCallsCompleted, estimatedTotalApiCalls);
+      progressCallback(apiCallsCompleted, estimatedTotalApiCalls, 0);
     }
     
     // Fetch directories recursively (with a reasonable limit)
@@ -244,7 +263,7 @@ export const fetchRepositoryData = async (
 
     // Final progress update - completed all API calls
     if (progressCallback) {
-      progressCallback(estimatedTotalApiCalls, estimatedTotalApiCalls);
+      progressCallback(estimatedTotalApiCalls, estimatedTotalApiCalls, 0);
     }
 
     return {

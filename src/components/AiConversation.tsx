@@ -4,7 +4,7 @@ import { Avatar } from "@/components/ui/avatar";
 import TypeWriter from "./TypeWriter";
 import { Progress } from "@/components/ui/progress";
 import { useApi } from "@/contexts/ApiContext";
-import { Activity, Loader } from "lucide-react";
+import { Activity, Loader, Clock } from "lucide-react";
 import { parseGitHubUrl, fetchRepositoryData, RepoData } from "@/services/githubService";
 import { generateAIConversation } from "@/services/aiService";
 
@@ -18,6 +18,13 @@ interface Message {
 interface AiConversationProps {
   repoUrl: string;
   onComplete: () => void;
+}
+
+interface AnalysisPhase {
+  name: string;
+  weight: number;
+  status: 'pending' | 'in-progress' | 'completed';
+  progress: number;
 }
 
 const agentConfig = {
@@ -45,11 +52,45 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const [analysisStartTime] = useState(Date.now());
   const [repoData, setRepoData] = useState<RepoData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [apiCallsCompleted, setApiCallsCompleted] = useState(0);
   const [totalApiCalls, setTotalApiCalls] = useState(0);
+  const [phases, setPhases] = useState<AnalysisPhase[]>([
+    { name: "Repository structure", weight: 0.4, status: 'pending', progress: 0 },
+    { name: "Code analysis", weight: 0.3, status: 'pending', progress: 0 },
+    { name: "Generating visualization", weight: 0.3, status: 'pending', progress: 0 }
+  ]);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Update elapsed time
+  useEffect(() => {
+    if (isLoading) {
+      timerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - analysisStartTime) / 1000);
+        setElapsedTime(elapsed);
+      }, 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [isLoading, analysisStartTime]);
+  
+  // Calculate weighted progress based on all phases
+  useEffect(() => {
+    const weightedProgress = phases.reduce((acc, phase) => {
+      return acc + (phase.progress * phase.weight);
+    }, 0);
+    
+    setProgress(Math.min(99, Math.round(weightedProgress)));
+  }, [phases]);
   
   // Step 1: Fetch repository data and update progress
   useEffect(() => {
@@ -78,21 +119,31 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         }
       ]);
       
-      // Set up a progress tracker
-      const progressCallback = (completed: number, total: number) => {
+      // Update phase status
+      updatePhaseStatus(0, 'in-progress');
+      
+      // Set up a progress tracker with enhanced details
+      const progressCallback = (completed: number, total: number, phase: number = 0) => {
         setApiCallsCompleted(completed);
         setTotalApiCalls(total);
         
-        // Calculate progress percentage
-        const newProgress = Math.min(Math.floor((completed / total) * 100), 99);
-        setProgress(newProgress);
+        // Update appropriate phase progress
+        const phaseProgress = Math.min(Math.floor((completed / total) * 100), 100);
+        updatePhaseProgress(phase, phaseProgress);
         
-        // Estimate remaining time based on average time per API call
-        const elapsedTime = (Date.now() - analysisStartTime) / 1000;
-        const timePerCall = completed > 0 ? elapsedTime / completed : 0;
-        const remainingCalls = total - completed;
-        const estimatedTimeRemaining = Math.ceil(timePerCall * remainingCalls);
-        setTimeRemaining(estimatedTimeRemaining > 0 ? estimatedTimeRemaining : 1);
+        // Calculate more accurate remaining time based on progress rate
+        const elapsedSecs = (Date.now() - analysisStartTime) / 1000;
+        if (completed > 0) {
+          const progressRate = completed / total;
+          if (progressRate > 0) {
+            const estimatedTotalTime = elapsedSecs / progressRate;
+            const remainingSecs = Math.max(1, Math.ceil(estimatedTotalTime - elapsedSecs));
+            
+            // Add adjustment based on repository complexity
+            const complexityFactor = total > 50 ? 1.2 : 1;
+            setTimeRemaining(Math.ceil(remainingSecs * complexityFactor));
+          }
+        }
       };
       
       try {
@@ -100,10 +151,32 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         const data = await fetchRepositoryData(repoUrl, gitHubApiKey, progressCallback);
         setRepoData(data);
         
+        // Mark phase 1 as complete
+        updatePhaseStatus(0, 'completed');
+        updatePhaseProgress(0, 100);
+        
+        // Start phase 2 - code analysis
+        updatePhaseStatus(1, 'in-progress');
+        
         if (data) {
           // Generate AI conversation based on the repository data
-          const aiMessages = await generateAIConversation(repoUrl, data, geminiApiKey);
+          const progressPhase2 = (progress: number) => {
+            updatePhaseProgress(1, progress);
+          };
+          
+          const aiMessages = await generateAIConversation(repoUrl, data, geminiApiKey, progressPhase2);
           setMessages(aiMessages);
+          
+          // Mark phase 2 as complete
+          updatePhaseStatus(1, 'completed');
+          updatePhaseProgress(1, 100);
+          
+          // Start phase 3 - visualization
+          updatePhaseStatus(2, 'in-progress');
+          setTimeout(() => {
+            updatePhaseProgress(2, 100);
+            updatePhaseStatus(2, 'completed');
+          }, 1500);
         } else {
           // Set error message if data fetch failed
           setMessages([
@@ -129,6 +202,24 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     fetchData();
   }, [repoUrl, gitHubApiKey, geminiApiKey]);
   
+  // Helper function to update phase status
+  const updatePhaseStatus = (phaseIndex: number, status: 'pending' | 'in-progress' | 'completed') => {
+    setPhases(prevPhases => 
+      prevPhases.map((phase, idx) => 
+        idx === phaseIndex ? { ...phase, status } : phase
+      )
+    );
+  };
+  
+  // Helper function to update phase progress
+  const updatePhaseProgress = (phaseIndex: number, progress: number) => {
+    setPhases(prevPhases => 
+      prevPhases.map((phase, idx) => 
+        idx === phaseIndex ? { ...phase, progress } : phase
+      )
+    );
+  };
+  
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [visibleIndex]);
@@ -146,6 +237,13 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     }
   };
 
+  // Format time as mm:ss
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
   return (
     <div className="flex flex-col space-y-4 p-4 max-w-3xl mx-auto h-full overflow-y-auto">
       <div className="text-center mb-8">
@@ -161,17 +259,35 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
               {progress}% complete
             </span>
             
-            {timeRemaining !== null && isLoading ? (
+            {isLoading ? (
               <span className="flex items-center gap-1">
-                <Activity className="h-3 w-3" />
-                Estimated time remaining: {timeRemaining} seconds
+                <Clock className="h-3 w-3" />
+                {timeRemaining !== null ? (
+                  <span>Estimated time remaining: {formatTime(timeRemaining)}</span>
+                ) : (
+                  <span>Calculating remaining time...</span>
+                )}
               </span>
             ) : (
               <span className="flex items-center gap-1">
                 <Activity className="h-3 w-3" />
-                {apiCallsCompleted} of {totalApiCalls} API calls completed
+                Completed in {formatTime(elapsedTime)}
               </span>
             )}
+          </div>
+          
+          {/* Phase progress indicators */}
+          <div className="space-y-2 mt-2 text-left">
+            {phases.map((phase, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  phase.status === 'completed' ? 'bg-green-500' : 
+                  phase.status === 'in-progress' ? 'bg-blue-500 animate-pulse' : 'bg-muted'
+                }`} />
+                <span className="text-xs">{phase.name}</span>
+                <span className="text-xs text-muted-foreground ml-auto">{phase.progress}%</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>

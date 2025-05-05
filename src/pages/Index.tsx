@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -67,14 +68,14 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-border p-4">
+      <header className="border-b border-border p-4 bg-gradient-to-r from-background to-muted">
         <div className="container flex justify-between items-center">
           <h1 className="text-2xl font-bold tracking-tight">AlphaCode</h1>
           <Button
             variant="outline"
             size="icon"
             onClick={() => setIsSettingsOpen(true)}
-            className="rounded-full"
+            className="rounded-full hover:bg-muted transition-colors"
           >
             <Settings size={20} />
           </Button>
@@ -85,16 +86,16 @@ const Index = () => {
         {appState === "input" && (
           <div className="container py-16 flex flex-col items-center justify-center flex-grow">
             <div className="max-w-3xl w-full text-center space-y-8">
-              <h2 className="text-4xl font-bold tracking-tight">
+              <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-blue-500 text-transparent bg-clip-text animate-fade-in">
                 Visualize GitHub Repositories
               </h2>
-              <p className="text-xl text-muted-foreground">
+              <p className="text-xl text-muted-foreground animate-fade-in" style={{animationDelay: "0.2s"}}>
                 Paste a GitHub repository URL to generate an interactive mind map
               </p>
 
-              <div className="flex flex-col space-y-4 w-full">
+              <div className="flex flex-col space-y-4 w-full animate-fade-in" style={{animationDelay: "0.4s"}}>
                 <Input
-                  className="h-16 text-lg bg-secondary border-border"
+                  className="h-16 text-lg bg-secondary border-border transition-all focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-0"
                   placeholder="https://github.com/username/repository"
                   value={repoUrl}
                   onChange={(e) => setRepoUrl(e.target.value)}
@@ -105,7 +106,7 @@ const Index = () => {
                 <Button
                   onClick={handleSubmit}
                   size="lg"
-                  className="text-lg h-12"
+                  className="text-lg h-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-600 hover:to-blue-800 transition-all"
                   disabled={!repoUrl}
                 >
                   Analyze Repository
@@ -113,7 +114,7 @@ const Index = () => {
               </div>
               
               {!gitHubApiKey && (
-                <p className="text-amber-500 text-sm">
+                <p className="text-amber-500 text-sm animate-fade-in" style={{animationDelay: "0.6s"}}>
                   Note: Adding a GitHub API key in settings is recommended to avoid rate limits.
                 </p>
               )}
@@ -151,7 +152,7 @@ const Index = () => {
               <Button 
                 variant="outline" 
                 onClick={() => setAppState("input")}
-                className="text-muted-foreground"
+                className="text-muted-foreground hover:bg-muted transition-colors"
               >
                 Analyze Another Repository
               </Button>
@@ -160,7 +161,7 @@ const Index = () => {
         )}
       </main>
 
-      <footer className="border-t border-border p-4">
+      <footer className="border-t border-border p-4 bg-gradient-to-r from-background to-muted">
         <div className="container text-center text-sm text-muted-foreground">
           AlphaCode - GitHub Repository Mind Mapper
         </div>

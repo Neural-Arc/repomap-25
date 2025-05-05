@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 
 interface GitHubFile {
@@ -32,6 +31,8 @@ interface GitHubRepository {
 interface GitHubContributor {
   login: string;
   contributions: number;
+  avatar_url: string;
+  html_url: string;
 }
 
 export interface RepoData {
@@ -40,6 +41,10 @@ export interface RepoData {
   files: Record<string, GitHubFile[]>;
   contributors: GitHubContributor[];
   mainBranch: string;
+  fileStats?: {
+    totalSize: number;
+    byExtension: Record<string, { count: number, size: number }>;
+  };
 }
 
 export interface RepoNode {
@@ -64,6 +69,9 @@ export interface RepoStats {
   description: string;
 }
 
+// Type for progress tracking callback
+type ProgressCallback = (completed: number, total: number) => void;
+
 /**
  * Extract repository owner and name from GitHub URL
  */
@@ -83,11 +91,12 @@ export const parseGitHubUrl = (url: string): { owner: string; repo: string } | n
 };
 
 /**
- * Fetch repository information from GitHub API
+ * Fetch repository information from GitHub API with progress tracking
  */
 export const fetchRepositoryData = async (
   repoUrl: string,
-  apiKey: string | null
+  apiKey: string | null,
+  progressCallback?: ProgressCallback
 ): Promise<RepoData | null> => {
   const repoInfo = parseGitHubUrl(repoUrl);
   if (!repoInfo) {
@@ -104,73 +113,97 @@ export const fetchRepositoryData = async (
     headers.Authorization = `Bearer ${apiKey}`;
   }
 
-  try {
-    // Fetch basic repository information
-    const repoResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}`,
-      { headers }
-    );
-
-    if (!repoResponse.ok) {
-      if (repoResponse.status === 404) {
-        toast.error("Repository not found. Make sure the repository exists and is public.");
-      } else if (repoResponse.status === 403 && repoResponse.headers.get("X-RateLimit-Remaining") === "0") {
-        toast.error("GitHub API rate limit exceeded. Try adding a GitHub API key in settings.");
-      } else {
-        toast.error(`Error fetching repository: ${repoResponse.statusText}`);
+  // Track API calls for progress reporting
+  let apiCallsCompleted = 0;
+  let estimatedTotalApiCalls = 3; // Start with base API calls (repo, branches, contributors)
+  
+  // Helper function to make API calls with progress tracking
+  const fetchWithProgress = async <T>(url: string): Promise<T | null> => {
+    try {
+      const response = await fetch(url, { headers });
+      
+      // Update progress after each API call
+      apiCallsCompleted++;
+      if (progressCallback) {
+        progressCallback(apiCallsCompleted, estimatedTotalApiCalls);
       }
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          toast.error("Resource not found. Make sure the repository exists and is public.");
+          return null;
+        } else if (response.status === 403 && response.headers.get("X-RateLimit-Remaining") === "0") {
+          toast.error("GitHub API rate limit exceeded. Try adding a GitHub API key in settings.");
+          return null;
+        } else {
+          toast.error(`Error fetching data: ${response.statusText}`);
+          return null;
+        }
+      }
+      
+      return await response.json() as T;
+    } catch (error) {
+      console.error("API call error:", error);
       return null;
     }
+  };
 
-    const repoData: GitHubRepository = await repoResponse.json();
+  try {
+    // Fetch basic repository information
+    const repoData = await fetchWithProgress<GitHubRepository>(
+      `https://api.github.com/repos/${owner}/${repo}`
+    );
+    
+    if (!repoData) return null;
     const mainBranch = repoData.default_branch;
 
     // Fetch branches
-    const branchesResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/branches`,
-      { headers }
-    );
-    const branches: GitHubBranch[] = branchesResponse.ok ? await branchesResponse.json() : [];
+    const branches = await fetchWithProgress<GitHubBranch[]>(
+      `https://api.github.com/repos/${owner}/${repo}/branches`
+    ) || [];
+    
+    // Update estimated total API calls based on repository size
+    estimatedTotalApiCalls += Math.min(branches.length, 10); // Limit to 10 branches for estimation
+    if (progressCallback) {
+      progressCallback(apiCallsCompleted, estimatedTotalApiCalls);
+    }
 
     // Fetch contributors
-    const contributorsResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contributors`,
-      { headers }
-    );
-    const contributors: GitHubContributor[] = contributorsResponse.ok ? await contributorsResponse.json() : [];
+    const contributors = await fetchWithProgress<GitHubContributor[]>(
+      `https://api.github.com/repos/${owner}/${repo}/contributors`
+    ) || [];
 
     // Fetch file structure recursively for the main branch
     const filesMap: Record<string, GitHubFile[]> = {};
     
     // Get root directory content
-    const contentResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents?ref=${mainBranch}`,
-      { headers }
+    const rootContent = await fetchWithProgress<GitHubFile[]>(
+      `https://api.github.com/repos/${owner}/${repo}/contents?ref=${mainBranch}`
     );
     
-    if (!contentResponse.ok) {
-      toast.error(`Error fetching repository content: ${contentResponse.statusText}`);
-      return null;
-    }
-    
-    const rootContent: GitHubFile[] = await contentResponse.json();
+    if (!rootContent) return null;
     filesMap[""] = rootContent;
+    
+    // Estimate additional API calls based on directory count
+    const dirCount = rootContent.filter(item => item.type === "dir").length;
+    estimatedTotalApiCalls += Math.min(dirCount * 3, 30); // Rough estimate, max 30 additional calls
+    if (progressCallback) {
+      progressCallback(apiCallsCompleted, estimatedTotalApiCalls);
+    }
     
     // Fetch directories recursively (with a reasonable limit)
     const fetchDirectoryContent = async (path: string, depth = 0) => {
       if (depth > 3) return; // Limit depth to prevent excessive API calls
       
-      const dirContent = filesMap[path].filter(item => item.type === "dir");
+      const dirContent = filesMap[path]?.filter(item => item.type === "dir") || [];
       
       for (const dir of dirContent) {
         const dirPath = dir.path;
-        const dirResponse = await fetch(
-          `https://api.github.com/repos/${owner}/${repo}/contents/${dirPath}?ref=${mainBranch}`,
-          { headers }
+        const files = await fetchWithProgress<GitHubFile[]>(
+          `https://api.github.com/repos/${owner}/${repo}/contents/${dirPath}?ref=${mainBranch}`
         );
         
-        if (dirResponse.ok) {
-          const files: GitHubFile[] = await dirResponse.json();
+        if (files) {
           filesMap[dirPath] = files;
           await fetchDirectoryContent(dirPath, depth + 1);
         }
@@ -183,12 +216,44 @@ export const fetchRepositoryData = async (
       console.error("Error while fetching directory contents:", error);
     }
 
+    // Gather file statistics
+    const fileStats = {
+      totalSize: 0,
+      byExtension: {} as Record<string, { count: number, size: number }>
+    };
+
+    // Process file statistics from the collected data
+    Object.values(filesMap).forEach(fileList => {
+      fileList.forEach(file => {
+        if (file.type === "file") {
+          const extension = file.path.split('.').pop() || "unknown";
+          
+          // Initialize extension stats if needed
+          if (!fileStats.byExtension[extension]) {
+            fileStats.byExtension[extension] = { count: 0, size: 0 };
+          }
+          
+          // Update counts
+          fileStats.byExtension[extension].count++;
+          
+          // We don't have file size in the basic content API
+          // In a full implementation, we would fetch each file's details
+        }
+      });
+    });
+
+    // Final progress update - completed all API calls
+    if (progressCallback) {
+      progressCallback(estimatedTotalApiCalls, estimatedTotalApiCalls);
+    }
+
     return {
       repo: repoData,
       branches,
       files: filesMap,
       contributors,
-      mainBranch
+      mainBranch,
+      fileStats
     };
   } catch (error) {
     console.error("Error fetching repository data:", error);
@@ -321,4 +386,89 @@ export const getRepoDownloadUrl = (repoUrl: string, branch: string = "main"): st
   
   const { owner, repo } = repoInfo;
   return `https://github.com/${owner}/${repo}/archive/refs/heads/${branch}.zip`;
+};
+
+/**
+ * Calculate repository health score based on various metrics
+ */
+export const calculateRepoHealth = (repoData: RepoData): { score: number, details: Record<string, number> } => {
+  const { repo, contributors, branches } = repoData;
+  
+  // Define weights for different factors
+  const weights = {
+    stars: 0.2,
+    activity: 0.3,
+    contributors: 0.2,
+    issues: 0.15,
+    branchCount: 0.15
+  };
+  
+  // Calculate scores for individual factors (0-10 scale)
+  const details: Record<string, number> = {
+    // Stars score (logarithmic scale)
+    stars: Math.min(10, Math.log10(repo.stargazers_count + 1) * 3),
+    
+    // Activity score based on last update
+    activity: calculateActivityScore(repo.updated_at),
+    
+    // Contributors score (logarithmic scale)
+    contributors: Math.min(10, Math.log10(contributors.length + 1) * 5),
+    
+    // Issues management score (inverse - fewer open issues is better)
+    issues: 10 * Math.exp(-repo.open_issues_count / 100),
+    
+    // Branch count score (ideally not too many, not too few)
+    branchCount: calculateBranchScore(branches.length)
+  };
+  
+  // Calculate weighted average
+  const score = Object.entries(details).reduce(
+    (sum, [key, value]) => sum + value * weights[key as keyof typeof weights],
+    0
+  );
+  
+  return { score, details };
+};
+
+/**
+ * Calculate activity score based on last update date
+ */
+const calculateActivityScore = (updatedAt: string): number => {
+  const lastUpdate = new Date(updatedAt);
+  const now = new Date();
+  const daysSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24);
+  
+  // Score decreases as days since update increases
+  if (daysSinceUpdate < 7) {
+    return 10; // Updated within a week
+  } else if (daysSinceUpdate < 30) {
+    return 8; // Updated within a month
+  } else if (daysSinceUpdate < 90) {
+    return 6; // Updated within 3 months
+  } else if (daysSinceUpdate < 180) {
+    return 4; // Updated within 6 months
+  } else if (daysSinceUpdate < 365) {
+    return 2; // Updated within a year
+  } else {
+    return 1; // Updated more than a year ago
+  }
+};
+
+/**
+ * Calculate branch count score
+ */
+const calculateBranchScore = (branchCount: number): number => {
+  if (branchCount === 0) {
+    return 0; // No branches is bad
+  } else if (branchCount <= 5) {
+    return 10; // 1-5 branches is ideal
+  } else if (branchCount <= 10) {
+    return 8; // 6-10 branches is good
+  } else if (branchCount <= 20) {
+    return 6; // 11-20 branches is okay
+  } else if (branchCount <= 50) {
+    return 4; // 21-50 branches is getting messy
+  } else {
+    return 2; // More than 50 branches is very messy
+  }
 };

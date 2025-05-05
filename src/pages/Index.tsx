@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,10 +34,8 @@ const Index = () => {
   };
 
   const handleSubmit = () => {
-    if (!geminiApiKey) {
-      setIsSettingsOpen(true);
-      toast.error("Please configure your Gemini API key first");
-      return;
+    if (!gitHubApiKey) {
+      toast.info("No GitHub API key provided. Repository analysis may be limited due to API rate limits.");
     }
 
     if (!isValidGithubUrl(repoUrl)) {

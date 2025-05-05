@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -406,8 +405,7 @@ const convertToFlowElements = (repoData: RepoNode | null): { nodes: Node[], edge
           },
           // Use smoothstep edge for better visualization
           type: 'smoothstep',
-          // Add some curvature to edges
-          curvature: 0.3
+          // Removed the 'curvature' property as it's not supported
         });
       });
     }

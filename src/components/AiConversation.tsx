@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import TypeWriter from "./TypeWriter";
@@ -64,14 +65,22 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     { name: "Generating visualization", weight: 0.3, status: 'pending', progress: 0 }
   ]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const [showMessages, setShowMessages] = useState(false); // New state to control when to show messages
+  const [showMessages, setShowMessages] = useState(false); // Control when to show messages
+  const [resultsReady, setResultsReady] = useState(false);
   
-  // Update elapsed time
+  // Update elapsed time and countdown
   useEffect(() => {
     if (isLoading) {
       timerRef.current = setInterval(() => {
         const elapsed = Math.floor((Date.now() - analysisStartTime) / 1000);
         setElapsedTime(elapsed);
+        
+        // Update the countdown if we have a timeRemaining estimate
+        if (timeRemaining !== null && timeRemaining > 0) {
+          // Calculate remaining time based on our estimate and elapsed time
+          const newTimeRemaining = Math.max(1, timeRemaining - 1);
+          setTimeRemaining(newTimeRemaining);
+        }
       }, 1000);
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -82,7 +91,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         clearInterval(timerRef.current);
       }
     };
-  }, [isLoading, analysisStartTime]);
+  }, [isLoading, analysisStartTime, timeRemaining]);
   
   // Calculate weighted progress based on all phases
   useEffect(() => {
@@ -103,12 +112,20 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     }
   }, [analysisComplete, showMessages, messages, visibleIndex]);
   
+  // Only call onComplete when results are truly ready and all messages are displayed
+  useEffect(() => {
+    if (resultsReady && !isLoading) {
+      onComplete();
+    }
+  }, [resultsReady, onComplete, isLoading]);
+  
   // Step 1: Fetch repository data and update progress
   useEffect(() => {
     // Fetch real data from GitHub API
     const fetchData = async () => {
       setIsLoading(true);
       setShowMessages(false); // Reset message visibility
+      setResultsReady(false); // Reset results ready flag
       
       // Parse the GitHub URL to get owner and repo
       const repoInfo = parseGitHubUrl(repoUrl);
@@ -169,15 +186,6 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
             updatePhaseProgress(1, progress);
           };
           
-          const aiMessages = await generateAIConversation(repoUrl, data, geminiApiKey, progressPhase2);
-          
-          // Mark phase 2 as complete
-          updatePhaseStatus(1, 'completed');
-          updatePhaseProgress(1, 100);
-          
-          // Start phase 3 - visualization
-          updatePhaseStatus(2, 'in-progress');
-          
           // Message for starting the analysis - Fix the type error by using a proper AIAgent type
           const initialMessage: Message = {
             agent: "integrationExpert",
@@ -186,6 +194,15 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
           
           // Set the initial message temporarily while we generate the visualization
           setMessages([initialMessage]);
+          
+          const aiMessages = await generateAIConversation(repoUrl, data, geminiApiKey, progressPhase2);
+          
+          // Mark phase 2 as complete
+          updatePhaseStatus(1, 'completed');
+          updatePhaseProgress(1, 100);
+          
+          // Start phase 3 - visualization
+          updatePhaseStatus(2, 'in-progress');
           
           // Simulate visualization generation (will be replaced with actual visualization in a real implementation)
           setTimeout(() => {
@@ -196,7 +213,6 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
             setMessages(aiMessages);
             
             // Mark analysis as complete but don't show messages yet
-            setIsLoading(false);
             setAnalysisComplete(true);
             
             // Wait a little bit before showing the messages to ensure smooth transition
@@ -218,7 +234,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         console.error("Error in AI conversation:", error);
         setMessages([
           {
-            agent: "integrationExpert",
+            agent: "integrationExpert" as AIAgent,
             content: `Analysis error: ${error instanceof Error ? error.message : "Unknown error occurred"}`
           }
         ]);
@@ -259,7 +275,8 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     } else {
       setTimeout(() => {
         setProgress(100); // Set to 100% when all messages are displayed
-        onComplete();
+        setIsLoading(false);
+        setResultsReady(true); // Only now are results truly ready to be displayed
       }, 1500); // Delay before completing the conversation
     }
   };
@@ -286,24 +303,20 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
               {progress}% complete
             </span>
             
-            {isLoading ? (
-              <span className="flex items-center gap-1">
+            {isLoading && timeRemaining !== null ? (
+              <div className="flex items-center gap-1 text-amber-500 font-medium">
                 <Clock className="h-3 w-3" />
-                {timeRemaining !== null ? (
-                  <span>Estimated time remaining: {formatTime(timeRemaining)}</span>
-                ) : (
-                  <span>Calculating remaining time...</span>
-                )}
-              </span>
+                <span>Time remaining: {formatTime(timeRemaining)}</span>
+              </div>
             ) : (
               <span className="flex items-center gap-1">
                 <Activity className="h-3 w-3" />
-                Completed in {formatTime(elapsedTime)}
+                {isLoading ? "Calculating..." : `Completed in ${formatTime(elapsedTime)}`}
               </span>
             )}
           </div>
           
-          {/* Phase progress indicators */}
+          {/* Phase progress indicators with improved visibility */}
           <div className="space-y-2 mt-2 text-left">
             {phases.map((phase, idx) => (
               <div key={idx} className="flex items-center gap-2">
@@ -368,6 +381,16 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
             We're examining the codebase, analyzing patterns, and generating insights.
             This may take a moment depending on the repository size.
           </p>
+          
+          {/* Countdown timer - more prominent when we have an estimate */}
+          {timeRemaining !== null && (
+            <div className="mt-4 bg-muted p-3 rounded-lg flex items-center gap-2 animate-pulse">
+              <Clock className="h-4 w-4 text-amber-500" />
+              <span className="font-medium">
+                Estimated completion in <span className="text-amber-500">{formatTime(timeRemaining)}</span>
+              </span>
+            </div>
+          )}
         </div>
       )}
       

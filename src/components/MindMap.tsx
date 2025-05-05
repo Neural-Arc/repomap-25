@@ -72,21 +72,63 @@ interface FileDetailProps {
   onClose: () => void;
 }
 
+// Color scheme for nodes
+const NODE_COLORS = {
+  directory: {
+    border: '#9b87f5',
+    background: 'from-purple-800/40 to-indigo-900/40',
+    text: 'text-purple-100',
+    icon: 'text-purple-400'
+  },
+  file: {
+    border: '#10b981',
+    background: 'from-emerald-800/40 to-emerald-900/40',
+    text: 'text-emerald-100',
+    icon: 'text-emerald-400'
+  },
+  function: {
+    border: '#8b5cf6',
+    background: 'from-violet-800/40 to-violet-900/40',
+    text: 'text-violet-100',
+    icon: 'text-violet-400'
+  }
+};
+
+// File extension colors
+const EXTENSION_COLORS = {
+  js: '#f7df1e',
+  jsx: '#61dafb',
+  ts: '#3178c6',
+  tsx: '#3178c6',
+  css: '#264de4',
+  scss: '#cc6699',
+  html: '#e34f26',
+  json: '#5a9b44',
+  md: '#9e70b2',
+  py: '#3776ab',
+  rb: '#cc342d',
+  go: '#00add8',
+  java: '#007396',
+  php: '#777bb4',
+  default: '#94a3b8'
+};
+
 // Custom node components
 const DirectoryNode = ({ data, isConnectable, id }: NodeProps) => {
   return (
-    <div className="group">
-      <div className="px-4 py-3 shadow-md rounded-md border-2 border-blue-500/80 bg-gradient-to-br from-blue-800/30 to-blue-900/30 backdrop-blur-sm transition-all duration-300 group-hover:shadow-lg group-hover:shadow-blue-500/20 group-hover:scale-105 min-w-[120px]">
+    <div className="group relative">
+      <div className={`px-4 py-3 shadow-lg rounded-md border-2 border-[${NODE_COLORS.directory.border}] bg-gradient-to-br ${NODE_COLORS.directory.background} backdrop-blur-sm transition-all duration-300 group-hover:shadow-xl group-hover:shadow-purple-500/20 min-w-[140px] z-10`}>
         <div className="flex items-center gap-2">
-          <Folder className="text-blue-400 w-5 h-5" />
-          <span className="font-medium text-sm text-blue-100">{data.label}</span>
+          <Folder className={`${NODE_COLORS.directory.icon} w-5 h-5`} />
+          <span className={`font-medium text-sm ${NODE_COLORS.directory.text}`}>{data.label}</span>
           {data.type === 'directory' && (
-            <Badge variant="outline" className="text-[0.65rem] bg-blue-950/40 text-blue-200">
+            <Badge variant="outline" className="text-[0.65rem] bg-purple-950/60 text-purple-200 border-purple-400/30">
               dir
             </Badge>
           )}
         </div>
       </div>
+      <div className="absolute inset-0 bg-purple-500/5 rounded-md -z-10 blur-sm opacity-0 group-hover:opacity-100 transition-opacity"></div>
     </div>
   );
 };
@@ -96,58 +138,43 @@ const FileNode = ({ data, isConnectable, id }: NodeProps) => {
   
   // Determine color based on file extension
   const getFileColor = () => {
-    switch(extension) {
-      case 'js':
-      case 'jsx':
-        return 'text-yellow-400';
-      case 'ts':
-      case 'tsx':
-        return 'text-blue-400';
-      case 'css':
-      case 'scss':
-        return 'text-pink-400';
-      case 'json':
-        return 'text-green-400';
-      case 'md':
-        return 'text-purple-400';
-      case 'html':
-        return 'text-orange-400';
-      default:
-        return 'text-gray-400';
-    }
+    const extColor = EXTENSION_COLORS[extension as keyof typeof EXTENSION_COLORS];
+    return extColor || EXTENSION_COLORS.default;
   };
   
   const fileColor = getFileColor();
   
   return (
-    <div className="group">
-      <div className="px-4 py-3 shadow-md rounded-md border-2 border-green-500/50 bg-gradient-to-br from-green-800/30 to-green-900/30 backdrop-blur-sm transition-all duration-300 group-hover:shadow-lg group-hover:shadow-green-500/20 group-hover:scale-105 min-w-[120px]">
+    <div className="group relative">
+      <div className={`px-4 py-3 shadow-lg rounded-md border-2 border-[${NODE_COLORS.file.border}] bg-gradient-to-br ${NODE_COLORS.file.background} backdrop-blur-sm transition-all duration-300 group-hover:shadow-xl group-hover:shadow-green-500/20 min-w-[140px] z-10`}>
         <div className="flex items-center gap-2">
-          <FileCode className={`${fileColor} w-5 h-5`} />
-          <span className="font-medium text-sm text-green-100">{data.label}</span>
+          <FileCode style={{ color: fileColor }} className="w-5 h-5" />
+          <span className={`font-medium text-sm ${NODE_COLORS.file.text}`}>{data.label}</span>
           {extension && (
-            <Badge variant="outline" className="text-[0.65rem] bg-green-950/40 text-green-200">
+            <Badge variant="outline" className="text-[0.65rem] bg-emerald-950/60 text-emerald-200 border-emerald-400/30">
               {extension}
             </Badge>
           )}
         </div>
       </div>
+      <div className="absolute inset-0 bg-emerald-500/5 rounded-md -z-10 blur-sm opacity-0 group-hover:opacity-100 transition-opacity"></div>
     </div>
   );
 };
 
 const FunctionNode = ({ data, isConnectable, id }: NodeProps) => {
   return (
-    <div className="group">
-      <div className="px-4 py-3 shadow-md rounded-md border-2 border-purple-500/50 bg-gradient-to-br from-purple-800/30 to-purple-900/30 backdrop-blur-sm transition-all duration-300 group-hover:shadow-lg group-hover:shadow-purple-500/20 group-hover:scale-105 min-w-[120px]">
+    <div className="group relative">
+      <div className={`px-4 py-3 shadow-lg rounded-md border-2 border-[${NODE_COLORS.function.border}] bg-gradient-to-br ${NODE_COLORS.function.background} backdrop-blur-sm transition-all duration-300 group-hover:shadow-xl group-hover:shadow-violet-500/20 min-w-[140px] z-10`}>
         <div className="flex items-center gap-2">
-          <Code className="text-purple-400 w-5 h-5" />
-          <span className="font-medium text-sm text-purple-100">{data.label}</span>
-          <Badge variant="outline" className="text-[0.65rem] bg-purple-950/40 text-purple-200">
+          <Code className={`${NODE_COLORS.function.icon} w-5 h-5`} />
+          <span className={`font-medium text-sm ${NODE_COLORS.function.text}`}>{data.label}</span>
+          <Badge variant="outline" className="text-[0.65rem] bg-violet-950/60 text-violet-200 border-violet-400/30">
             func
           </Badge>
         </div>
       </div>
+      <div className="absolute inset-0 bg-violet-500/5 rounded-md -z-10 blur-sm opacity-0 group-hover:opacity-100 transition-opacity"></div>
     </div>
   );
 };
@@ -313,8 +340,8 @@ const convertToFlowElements = (repoData: RepoNode | null): { nodes: Node[], edge
     // If node has children and isn't collapsed, process them
     if (node.children && node.children.length > 0 && !node.collapsed) {
       const childCount = node.children.length;
-      const horizontalGap = 280; // Increased spacing between nodes horizontally
-      const verticalGap = 180; // Increased spacing between nodes vertically
+      const horizontalGap = 350; // Increased spacing between nodes horizontally
+      const verticalGap = 200; // Increased spacing between nodes vertically
       
       // Calculate starting position for children
       let startX = position.x - ((childCount - 1) * horizontalGap) / 2;
@@ -332,7 +359,7 @@ const convertToFlowElements = (repoData: RepoNode | null): { nodes: Node[], edge
           animated: child.type === "function",
           style: { 
             stroke: getEdgeColor(child.type),
-            strokeWidth: 2,
+            strokeWidth: 3,
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
@@ -362,14 +389,14 @@ const getNodeType = (type: string): string => {
 };
 
 const getNodeWidth = (label: string, type: string): number => {
-  const baseWidth = 140;
-  const charWidth = 8;
+  const baseWidth = 160;
+  const charWidth = 10;
   return Math.max(baseWidth, label.length * charWidth);
 };
 
 const getEdgeColor = (type: string): string => {
   switch (type) {
-    case "directory": return "#3b82f6";
+    case "directory": return "#9b87f5";
     case "file": return "#10b981";
     case "function": return "#8b5cf6";
     default: return "#94a3b8";
@@ -447,7 +474,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
     (connection: Connection) => setEdges((eds) => addEdge({
       ...connection,
       animated: true,
-      style: { stroke: '#9b87f5', strokeWidth: 2 },
+      style: { stroke: '#9b87f5', strokeWidth: 3 },
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color: '#9b87f5',
@@ -656,74 +683,77 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
           defaultEdgeOptions={{ 
             type: 'smoothstep',
             animated: true,
-            style: { strokeWidth: 2 }
+            style: { strokeWidth: 3 }
           }}
-          className="bg-gradient-to-br from-black/30 to-primary/5"
+          className="bg-gradient-to-br from-black/60 to-primary/10"
         >
-          <Panel position="top-left" className="bg-background/90 p-3 rounded-md shadow-md border border-border">
-            <div className="flex items-center space-x-2 mb-3">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search files..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-8 text-sm"
-              />
-            </div>
-            <div className="flex items-center space-x-1 flex-wrap gap-1">
-              <Filter className="h-4 w-4 text-muted-foreground mr-1" />
-              <Button
-                variant={!filterType ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => setFilterType(null)}
-                className="text-xs py-0 h-6"
-              >
-                All
-              </Button>
-              <Button
-                variant={filterType === 'directory' ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => setFilterType('directory')}
-                className="text-xs py-0 h-6"
-              >
-                <Folder className="h-3 w-3 mr-1" />Dirs
-              </Button>
-              {Array.from(visibleFileTypes).slice(0, 5).map(ext => (
+          {/* Search panel now moved to center */}
+          <Panel position="top-center" className="bg-background/90 p-4 rounded-md shadow-md border border-border w-full max-w-md mt-2 shadow-lg">
+            <div className="flex flex-col space-y-3">
+              <div className="flex items-center space-x-2">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search files..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="flex items-center space-x-1 flex-wrap gap-1">
+                <Filter className="h-4 w-4 text-muted-foreground mr-1" />
                 <Button
-                  key={ext}
-                  variant={filterType === ext ? "secondary" : "outline"}
+                  variant={!filterType ? "secondary" : "outline"}
                   size="sm"
-                  onClick={() => setFilterType(ext)}
+                  onClick={() => setFilterType(null)}
                   className="text-xs py-0 h-6"
                 >
-                  <File className="h-3 w-3 mr-1" />.{ext}
+                  All
                 </Button>
-              ))}
-              {visibleFileTypes.size > 5 && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="outline" size="sm" className="text-xs py-0 h-6">
-                        +{visibleFileTypes.size - 5}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <div className="p-1 grid grid-cols-3 gap-1">
-                        {Array.from(visibleFileTypes).slice(5).map(ext => (
-                          <Badge 
-                            key={ext} 
-                            variant="outline" 
-                            className="cursor-pointer"
-                            onClick={() => setFilterType(ext)}
-                          >
-                            .{ext}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
+                <Button
+                  variant={filterType === 'directory' ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterType('directory')}
+                  className="text-xs py-0 h-6"
+                >
+                  <Folder className="h-3 w-3 mr-1" />Dirs
+                </Button>
+                {Array.from(visibleFileTypes).slice(0, 5).map(ext => (
+                  <Button
+                    key={ext}
+                    variant={filterType === ext ? "secondary" : "outline"}
+                    size="sm"
+                    onClick={() => setFilterType(ext)}
+                    className="text-xs py-0 h-6"
+                  >
+                    <File className="h-3 w-3 mr-1" />.{ext}
+                  </Button>
+                ))}
+                {visibleFileTypes.size > 5 && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="sm" className="text-xs py-0 h-6">
+                          +{visibleFileTypes.size - 5}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="p-1 grid grid-cols-3 gap-1">
+                          {Array.from(visibleFileTypes).slice(5).map(ext => (
+                            <Badge 
+                              key={ext} 
+                              variant="outline" 
+                              className="cursor-pointer"
+                              onClick={() => setFilterType(ext)}
+                            >
+                              .{ext}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
             </div>
           </Panel>
 
@@ -802,8 +832,8 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
             </Panel>
           )}
           
-          {/* Custom zoom controls */}
-          <Panel position="bottom-right" className="bg-background/90 p-2 rounded-md shadow-md border border-border mb-12 mr-12">
+          {/* Zoom controls moved to top-right */}
+          <Panel position="top-right" className="bg-background/90 p-2 rounded-md shadow-md border border-border mt-2 mr-2">
             <div className="flex gap-1">
               <Button 
                 variant="outline" 
@@ -836,20 +866,25 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
           <MiniMap 
             nodeStrokeWidth={3}
             nodeColor={(node) => {
-              if (node.type === 'directory') return '#3b82f6';
+              if (node.type === 'directory') return '#9b87f5';
               if (node.type === 'file') return '#10b981';
               if (node.type === 'function') return '#8b5cf6';
               return '#94a3b8';
             }}
             maskColor="rgba(0, 0, 0, 0.5)"
-            className="!bg-background/10 !border-muted"
+            className="bg-background/20 border-muted"
             style={{
               backgroundColor: 'transparent',
               width: 140,
               height: 100
             }}
           />
-          <Background color="#3b3b3b" gap={24} size={1.5} variant={BackgroundVariant.Dots} />
+          <Background 
+            color="#555555" 
+            gap={24} 
+            size={1.5} 
+            variant={BackgroundVariant.Dots} 
+          />
         </ReactFlow>
       </div>
       

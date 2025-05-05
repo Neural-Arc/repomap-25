@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useApi } from "@/contexts/ApiContext";
 import { toast } from "sonner";
+import { Separator } from "@/components/ui/separator";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -23,23 +24,55 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   open,
   onOpenChange,
 }) => {
-  const { apiKey, setApiKey, clearApiKey } = useApi();
-  const [inputKey, setInputKey] = useState(apiKey || "");
+  const { 
+    geminiApiKey, 
+    gitHubApiKey, 
+    setGeminiApiKey, 
+    setGitHubApiKey,
+    clearGeminiApiKey, 
+    clearGitHubApiKey 
+  } = useApi();
+  
+  const [inputGeminiKey, setInputGeminiKey] = useState(geminiApiKey || "");
+  const [inputGitHubKey, setInputGitHubKey] = useState(gitHubApiKey || "");
 
   const handleSave = () => {
-    if (inputKey.trim()) {
-      setApiKey(inputKey.trim());
-      toast.success("API key saved successfully");
+    let hasValidKeys = false;
+    
+    if (inputGeminiKey.trim()) {
+      setGeminiApiKey(inputGeminiKey.trim());
+      hasValidKeys = true;
+    } else if (geminiApiKey) {
+      // If field was cleared but had a previous value
+      clearGeminiApiKey();
+    }
+    
+    if (inputGitHubKey.trim()) {
+      setGitHubApiKey(inputGitHubKey.trim());
+      hasValidKeys = true;
+    } else if (gitHubApiKey) {
+      // If field was cleared but had a previous value
+      clearGitHubApiKey();
+    }
+    
+    if (hasValidKeys) {
+      toast.success("API keys saved successfully");
       onOpenChange(false);
     } else {
-      toast.error("Please enter a valid API key");
+      toast.error("Please enter at least one API key");
     }
   };
 
-  const handleClear = () => {
-    setInputKey("");
-    clearApiKey();
-    toast.info("API key removed");
+  const handleClearGemini = () => {
+    setInputGeminiKey("");
+    clearGeminiApiKey();
+    toast.info("Gemini API key removed");
+  };
+  
+  const handleClearGitHub = () => {
+    setInputGitHubKey("");
+    clearGitHubApiKey();
+    toast.info("GitHub API key removed");
   };
 
   return (
@@ -48,38 +81,75 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">Settings</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Configure your OpenAI API key for repository analysis
+            Configure your API keys for repository analysis
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-6 py-4">
           <div className="space-y-2">
-            <Label htmlFor="apiKey">OpenAI API Key</Label>
+            <Label htmlFor="geminiApiKey">Gemini API Key</Label>
             <Input
-              id="apiKey"
+              id="geminiApiKey"
               type="password"
-              placeholder="sk-..."
-              value={inputKey}
-              onChange={(e) => setInputKey(e.target.value)}
+              placeholder="Enter your Gemini API key..."
+              value={inputGeminiKey}
+              onChange={(e) => setInputGeminiKey(e.target.value)}
               className="bg-input text-foreground border-border"
             />
             <p className="text-sm text-muted-foreground">
-              Your API key is stored locally on your device and never sent to our servers
+              Required for AI-powered repository analysis
             </p>
+            
+            {geminiApiKey && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearGemini}
+                className="mt-1 bg-muted text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+              >
+                Clear Gemini Key
+              </Button>
+            )}
           </div>
+          
+          <Separator />
+          
+          <div className="space-y-2">
+            <Label htmlFor="gitHubApiKey">GitHub API Key</Label>
+            <Input
+              id="gitHubApiKey"
+              type="password"
+              placeholder="ghp_..."
+              value={inputGitHubKey}
+              onChange={(e) => setInputGitHubKey(e.target.value)}
+              className="bg-input text-foreground border-border"
+            />
+            <p className="text-sm text-muted-foreground">
+              Used to access repository data with higher rate limits
+            </p>
+            
+            {gitHubApiKey && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearGitHub}
+                className="mt-1 bg-muted text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+              >
+                Clear GitHub Key
+              </Button>
+            )}
+          </div>
+          
+          <p className="text-sm text-muted-foreground">
+            Your API keys are stored locally on your device and never sent to our servers
+          </p>
         </div>
 
         <DialogFooter>
-          {apiKey && (
-            <Button
-              variant="outline"
-              onClick={handleClear}
-              className="bg-muted text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
-            >
-              Clear Key
-            </Button>
-          )}
-          <Button onClick={handleSave} className="bg-primary text-primary-foreground">
+          <Button 
+            onClick={handleSave} 
+            className="bg-primary text-primary-foreground"
+          >
             Save Changes
           </Button>
         </DialogFooter>

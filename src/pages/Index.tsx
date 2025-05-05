@@ -12,7 +12,7 @@ import { toast } from "sonner";
 type AppState = "input" | "analyzing" | "result";
 
 const Index = () => {
-  const { apiKey } = useApi();
+  const { geminiApiKey, gitHubApiKey } = useApi();
   const [repoUrl, setRepoUrl] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [appState, setAppState] = useState<AppState>("input");
@@ -24,9 +24,9 @@ const Index = () => {
   };
 
   const handleSubmit = () => {
-    if (!apiKey) {
+    if (!geminiApiKey) {
       setIsSettingsOpen(true);
-      toast.error("Please configure your OpenAI API key first");
+      toast.error("Please configure your Gemini API key first");
       return;
     }
 

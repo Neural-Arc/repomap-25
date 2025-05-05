@@ -2,36 +2,64 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
 
 interface ApiContextType {
-  apiKey: string | null;
-  setApiKey: (key: string) => void;
-  clearApiKey: () => void;
+  geminiApiKey: string | null;
+  gitHubApiKey: string | null;
+  setGeminiApiKey: (key: string) => void;
+  setGitHubApiKey: (key: string) => void;
+  clearGeminiApiKey: () => void;
+  clearGitHubApiKey: () => void;
 }
 
 const ApiContext = createContext<ApiContextType | undefined>(undefined);
 
 export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [apiKey, setApiKeyState] = useState<string | null>(null);
+  const [geminiApiKey, setGeminiApiKeyState] = useState<string | null>(null);
+  const [gitHubApiKey, setGitHubApiKeyState] = useState<string | null>(null);
 
-  // Load API key from localStorage on mount
+  // Load API keys from localStorage on mount
   useEffect(() => {
-    const storedKey = localStorage.getItem("alphacode_api_key");
-    if (storedKey) {
-      setApiKeyState(storedKey);
+    const storedGeminiKey = localStorage.getItem("alphacode_gemini_api_key");
+    if (storedGeminiKey) {
+      setGeminiApiKeyState(storedGeminiKey);
+    }
+    
+    const storedGitHubKey = localStorage.getItem("alphacode_github_api_key");
+    if (storedGitHubKey) {
+      setGitHubApiKeyState(storedGitHubKey);
     }
   }, []);
 
-  const setApiKey = (key: string) => {
-    localStorage.setItem("alphacode_api_key", key);
-    setApiKeyState(key);
+  const setGeminiApiKey = (key: string) => {
+    localStorage.setItem("alphacode_gemini_api_key", key);
+    setGeminiApiKeyState(key);
   };
 
-  const clearApiKey = () => {
-    localStorage.removeItem("alphacode_api_key");
-    setApiKeyState(null);
+  const setGitHubApiKey = (key: string) => {
+    localStorage.setItem("alphacode_github_api_key", key);
+    setGitHubApiKeyState(key);
+  };
+
+  const clearGeminiApiKey = () => {
+    localStorage.removeItem("alphacode_gemini_api_key");
+    setGeminiApiKeyState(null);
+  };
+
+  const clearGitHubApiKey = () => {
+    localStorage.removeItem("alphacode_github_api_key");
+    setGitHubApiKeyState(null);
   };
 
   return (
-    <ApiContext.Provider value={{ apiKey, setApiKey, clearApiKey }}>
+    <ApiContext.Provider 
+      value={{ 
+        geminiApiKey, 
+        gitHubApiKey,
+        setGeminiApiKey, 
+        setGitHubApiKey,
+        clearGeminiApiKey, 
+        clearGitHubApiKey 
+      }}
+    >
       {children}
     </ApiContext.Provider>
   );

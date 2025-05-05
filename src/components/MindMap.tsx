@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -408,6 +409,16 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
           const flowElements = convertToFlowElements(rootNode);
           setNodes(flowElements.nodes);
           setEdges(flowElements.edges);
+
+          // Give a small delay to ensure nodes are rendered before fitting view
+          setTimeout(() => {
+            reactFlowInstance.fitView({
+              padding: 0.3,
+              duration: 800,
+              minZoom: 0.5,
+              maxZoom: 1.5
+            });
+          }, 100);
         } else {
           setError("Failed to fetch repository data");
         }
@@ -420,10 +431,18 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
     };
     
     fetchData();
-  }, [repoUrl, gitHubApiKey, setNodes, setEdges]);
+  }, [repoUrl, gitHubApiKey, setNodes, setEdges, reactFlowInstance]);
 
   const onConnect = useCallback(
-    (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
+    (connection: Connection) => setEdges((eds) => addEdge({
+      ...connection,
+      animated: true,
+      style: { stroke: '#9b87f5', strokeWidth: 2 },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: '#9b87f5',
+      }
+    }, eds)),
     [setEdges]
   );
 
@@ -451,8 +470,16 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
       const flowElements = convertToFlowElements(updatedRootNode);
       setNodes(flowElements.nodes);
       setEdges(flowElements.edges);
+      
+      // Re-fit view after toggling
+      setTimeout(() => {
+        reactFlowInstance.fitView({
+          padding: 0.3,
+          duration: 800
+        });
+      }, 100);
     }
-  }, [rootNode, setNodes, setEdges]);
+  }, [rootNode, setNodes, setEdges, reactFlowInstance]);
 
   const handleDownload = () => {
     const downloadUrl = getRepoDownloadUrl(repoUrl);
@@ -592,10 +619,21 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
           nodeTypes={nodeTypes}
           onNodeClick={onNodeClick}
           fitView
+          fitViewOptions={{
+            padding: 0.3,
+            minZoom: 0.5,
+            maxZoom: 1.5,
+            duration: 800,
+          }}
           attributionPosition="bottom-right"
           minZoom={0.2}
           maxZoom={2}
-          defaultEdgeOptions={{ type: 'smoothstep' }}
+          defaultEdgeOptions={{ 
+            type: 'smoothstep',
+            animated: true,
+            style: { strokeWidth: 2 }
+          }}
+          className="bg-gradient-to-br from-black/30 to-primary/5"
         >
           <Panel position="top-left" className="bg-background/90 p-2 rounded-md shadow-md border border-border">
             <div className="flex items-center space-x-2 mb-2">
@@ -745,7 +783,7 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
             </Panel>
           )}
           
-          <Controls />
+          <Controls className="bg-background/80 border border-border shadow-lg rounded-md" />
           <MiniMap 
             nodeStrokeWidth={3}
             nodeColor={(node) => {
@@ -754,9 +792,13 @@ const MindMapContent: React.FC<MindMapProps> = ({ repoUrl }) => {
               if (node.type === 'function') return '#8b5cf6';
               return '#94a3b8';
             }}
-            maskColor="rgba(0, 0, 0, 0.2)"
+            maskColor="rgba(0, 0, 0, 0.5)"
+            className="!bg-background/10 !border-muted"
+            style={{
+              backgroundColor: 'transparent',
+            }}
           />
-          <Background color="#484848" gap={16} size={1} variant={BackgroundVariant.Dots} />
+          <Background color="#3b3b3b" gap={20} size={1.5} variant={BackgroundVariant.Dots} />
         </ReactFlow>
       </div>
       

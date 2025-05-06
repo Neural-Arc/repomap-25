@@ -872,14 +872,14 @@ export default ExampleComponent;`;
               className="h-9 w-64 bg-muted/10 backdrop-blur-sm border-border/40"
             />
             <Select
-              value={filterType || ""}
-              onValueChange={(value) => setFilterType(value === "" ? null : value)}
+              value={filterType || "all"}
+              onValueChange={(value) => setFilterType(value === "all" ? null : value)}
             >
               <SelectTrigger className="w-[180px] h-9 bg-muted/10 backdrop-blur-sm border-border/40">
                 <SelectValue placeholder="Filter by type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All types</SelectItem>
+                <SelectItem value="all">All types</SelectItem>
                 <SelectItem value="directory">Directories</SelectItem>
                 {fileExtensions.map(ext => (
                   <SelectItem key={ext} value={ext}>

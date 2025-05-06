@@ -275,7 +275,7 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
         .distance(d => d.distance || 80)
         .strength(d => d.strength || 0.1))
       .force("center", d3.forceCenter(centerX, centerY))
-      .force("collision", d3.forceCollide().radius(d => (d.size || 10) * 1.5))
+      .force("collision", d3.forceCollide().radius(d => d.size * 1.5))
       .force("radial", d3.forceRadial((d: D3Node) => 100 + d.depth * 120, centerX, centerY).strength(0.8));
     
     // Store simulation for cleanup

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useApi } from "@/contexts/ApiContext";
 import TypeWriter from "./TypeWriter";
@@ -555,7 +556,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       `Looking at ${fileName} in the ${dirPath || 'root'} directory. Nice ${extension} code here!`,
       `Analyzing ${fileName}... This ${extension} file has some interesting patterns.`,
       `Found ${fileName} - this looks like a key component in the ${dirPath || 'root'} structure.`,
-      `Examining ${fileName}... I see some well-structured ${extension} code.`,\
+      `Examining ${fileName}... I see some well-structured ${extension} code.`,
       `${fileName} appears to be ${Math.random() > 0.5 ? 'well documented' : 'could use more comments'}.`,
       `This ${extension} file (${fileName}) is contributing to the overall architecture.`,
       `${fileName} seems to be handling ${dirPath.includes('util') ? 'utility functions' : dirPath.includes('component') ? 'UI components' : 'core functionality'}.`,
@@ -796,4 +797,80 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
                         <div className="flex flex-col space-y-1 flex-1">
                           <span className="text-sm font-medium">{agent.name}</span>
                           <div className="rounded-lg bg-muted/40 backdrop-blur-sm p-3 border border-border/30 shadow-sm">
-                            {index ===
+                            {index === visibleIndex ? (
+                              <TypeWriter
+                                text={message.content}
+                                speed={30} // Slightly faster typing for better engagement
+                                onComplete={handleMessageComplete}
+                                className="text-sm"
+                                highlight={message.highlight}
+                              />
+                            ) : (
+                              <span className="text-sm">
+                                {message.highlight ? (
+                                  <>
+                                    {message.content.split(message.highlight).map((part, i, arr) => (
+                                      <React.Fragment key={i}>
+                                        {part}
+                                        {i < arr.length - 1 && (
+                                          <span className="bg-indigo-500/20 px-1 rounded text-indigo-200 font-mono">
+                                            {message.highlight}
+                                          </span>
+                                        )}
+                                      </React.Fragment>
+                                    ))}
+                                  </>
+                                ) : (
+                                  message.content
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  {messages.length === 0 && (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                        <p className="text-muted-foreground">Initializing analysis...</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Error state */}
+                  {analysisError && (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+                      <h3 className="text-lg font-medium mb-2">Analysis Failed</h3>
+                      <p className="text-sm text-muted-foreground max-w-md">
+                        We encountered an error while analyzing the repository.
+                        Please check the URL and try again.
+                      </p>
+                      <div className="mt-4">
+                        <Button
+                          variant="outline"
+                          onClick={() => window.location.reload()}
+                          className="gap-2"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                          Try Again
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div ref={messagesEndRef} />
+                </ScrollArea>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default AiConversation;

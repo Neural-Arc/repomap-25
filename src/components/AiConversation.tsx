@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useApi } from "@/contexts/ApiContext";
 import TypeWriter from "./TypeWriter";
-import { parseGitHubUrl, fetchRepositoryData, RepoData } from "@/services/githubService";
+import { parseGitHubUrl, fetchRepositoryData, RepoData, ProgressCallback } from "@/services/githubService";
 import { generateAIConversation } from "@/services/aiService";
 import { toast } from "sonner";
 import { 
@@ -197,6 +196,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
   // Only call onComplete when results are truly ready and all messages are displayed
   useEffect(() => {
     if (resultsReady && !isLoading) {
+      console.log("Analysis is complete, calling onComplete");
       setTimeout(() => {
         onComplete();
       }, 800); // Small delay to ensure everything is fully loaded
@@ -254,6 +254,8 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       setAnalysisError(null);
       aiConversationStarted.current = false;
       
+      console.log("Starting repository analysis for URL:", repoUrl);
+      
       // Reset phases
       setPhases(phases => phases.map(phase => ({
         ...phase,
@@ -275,6 +277,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         setVisibleIndex(0);
         setIsLoading(false);
         setAnalysisError("Invalid GitHub URL");
+        console.error("Invalid GitHub URL:", repoUrl);
         return;
       }
       
@@ -293,7 +296,8 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       setVisibleIndex(0);
       
       // Progress callback for repository data fetching
-      const progressCallback = (completed: number, total: number, phase: number = 0, filePath?: string, fileType?: string) => {
+      const progressCallback: ProgressCallback = (completed: number, total: number, phase: number = 0, filePath?: string, fileType?: string) => {
+        console.log(`Progress update: ${completed}/${total} (phase ${phase}) - ${filePath || 'no file'}`);
         setApiCallsCompleted(completed);
         setTotalApiCalls(total);
         
@@ -349,6 +353,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         setRepoData(data);
         
         if (!data) {
+          console.error("Repository data fetch failed");
           toast.error("Failed to fetch repository data. Check the URL and your API keys.");
           setAnalysisError("Repository data fetch failed");
           setIsLoading(false);
@@ -366,6 +371,8 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         
         setFileCount(files);
         setDirectoryCount(directories);
+        
+        console.log(`Repository structure analyzed: ${files} files across ${directories} directories`);
         
         // Mark phase 1 (structure) as complete
         updatePhaseStatus(0, 'completed');
@@ -385,12 +392,14 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         setActivePhaseIndex(1);
         
         // Generate AI conversation based on the repository data
+        console.log("Starting AI conversation generation");
         const aiMessages = await generateAIConversation(
           repoUrl, 
           data, 
           geminiApiKey, 
           // Progress callback for AI generation
           (completed, total, phase = 1) => {
+            console.log(`AI generation progress: ${completed}/${total} (phase ${phase})`);
             const aiProgress = Math.min(Math.floor((completed / total) * 100), 100);
             updatePhaseProgress(phase, aiProgress);
           }
@@ -460,6 +469,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
                 setAnalysisComplete(true);
                 setIsLoading(false);
                 setResultsReady(true);
+                console.log("Analysis complete, results ready");
               }
             };
             
@@ -519,6 +529,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         setProgress(100); // Set to 100% when all messages are displayed
         setIsLoading(false);
         setResultsReady(true); // Only now are results truly ready to be displayed
+        console.log("All messages displayed, results ready");
       }, 800); // Delay before completing the conversation
     }
   };
@@ -799,18 +810,3 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
                       className="bg-background/40 backdrop-blur-sm"
                       onClick={() => onComplete()}
                     >
-                      <ChevronRight className="mr-2 h-4 w-4" />
-                      View Repository Visualization
-                    </Button>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-};
-
-export default AiConversation;

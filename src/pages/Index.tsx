@@ -14,7 +14,7 @@ import { toast } from "sonner";
 type AppState = "input" | "analyzing" | "result";
 
 const Index = () => {
-  const { geminiApiKey, gitHubApiKey } = useApi();
+  const { geminiApiKey, gitHubApiKey, hasApiKeys } = useApi();
   const [repoUrl, setRepoUrl] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [appState, setAppState] = useState<AppState>("input");
@@ -23,7 +23,7 @@ const Index = () => {
 
   // Check for missing API keys when component mounts
   useEffect(() => {
-    if (!geminiApiKey && !gitHubApiKey) {
+    if (!hasApiKeys()) {
       setIsSettingsOpen(true);
       toast.info("Please configure your API keys to get started. At minimum, a GitHub API key is recommended to avoid rate limits.");
     } else if (!gitHubApiKey) {
@@ -35,7 +35,7 @@ const Index = () => {
         },
       });
     }
-  }, [geminiApiKey, gitHubApiKey]);
+  }, [geminiApiKey, gitHubApiKey, hasApiKeys]);
 
   const isValidGithubUrl = (url: string): boolean => {
     const regex = /^https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/;
@@ -58,11 +58,13 @@ const Index = () => {
       });
     }
 
+    console.log("Starting analysis for repository:", repoUrl);
     setAnalyzedRepo(repoUrl);
     setAppState("analyzing");
   };
 
   const handleAnalysisComplete = () => {
+    console.log("Analysis complete, moving to results view");
     setAppState("result");
   };
 

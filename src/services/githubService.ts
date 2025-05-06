@@ -76,8 +76,8 @@ export interface RepoStats {
   commits: number;
 }
 
-// Type for progress tracking callback - now with optional phase parameter
-type ProgressCallback = (completed: number, total: number, phase?: number) => void;
+// Type for progress tracking callback - now with optional phase parameter and file information
+export type ProgressCallback = (completed: number, total: number, phase?: number, filePath?: string, fileType?: string) => void;
 
 /**
  * Extract repository owner and name from GitHub URL
@@ -128,7 +128,7 @@ export const fetchRepositoryData = async (
   let repositorySize = 0; // Will be updated once we have repo data
   
   // Helper function to make API calls with progress tracking
-  const fetchWithProgress = async <T>(url: string): Promise<T | null> => {
+  const fetchWithProgress = async <T>(url: string, currentPath?: string, fileType?: string): Promise<T | null> => {
     try {
       const response = await fetch(url, { headers });
       
@@ -136,7 +136,7 @@ export const fetchRepositoryData = async (
       apiCallsCompleted++;
       if (progressCallback) {
         // Always pass phase 0 for repository structure fetching
-        progressCallback(apiCallsCompleted, estimatedTotalApiCalls, 0);
+        progressCallback(apiCallsCompleted, estimatedTotalApiCalls, 0, currentPath, fileType);
       }
       
       if (!response.ok) {
@@ -160,12 +160,21 @@ export const fetchRepositoryData = async (
   };
 
   try {
+    console.log("Starting GitHub repository data fetch...");
+    
     // Fetch basic repository information
     const repoData = await fetchWithProgress<GitHubRepository>(
-      `https://api.github.com/repos/${owner}/${repo}`
+      `https://api.github.com/repos/${owner}/${repo}`,
+      `${owner}/${repo}`,
+      "repository"
     );
     
-    if (!repoData) return null;
+    if (!repoData) {
+      console.error("Failed to fetch repository data");
+      return null;
+    }
+    
+    console.log("Repository basic data fetched:", repoData.name);
     const mainBranch = repoData.default_branch;
 
     // Update repository size based on repo data
@@ -179,8 +188,12 @@ export const fetchRepositoryData = async (
 
     // Fetch branches
     const branches = await fetchWithProgress<GitHubBranch[]>(
-      `https://api.github.com/repos/${owner}/${repo}/branches`
+      `https://api.github.com/repos/${owner}/${repo}/branches`,
+      `${owner}/${repo}/branches`,
+      "branches"
     ) || [];
+    
+    console.log(`Fetched ${branches.length} branches`);
     
     // Update estimated total API calls based on repository size
     estimatedTotalApiCalls += Math.min(branches.length, 10); // Limit to 10 branches for estimation
@@ -190,19 +203,30 @@ export const fetchRepositoryData = async (
 
     // Fetch contributors
     const contributors = await fetchWithProgress<GitHubContributor[]>(
-      `https://api.github.com/repos/${owner}/${repo}/contributors`
+      `https://api.github.com/repos/${owner}/${repo}/contributors`,
+      `${owner}/${repo}/contributors`,
+      "contributors"
     ) || [];
+    
+    console.log(`Fetched ${contributors.length} contributors`);
 
     // Fetch file structure recursively for the main branch
     const filesMap: Record<string, GitHubFile[]> = {};
     
     // Get root directory content
     const rootContent = await fetchWithProgress<GitHubFile[]>(
-      `https://api.github.com/repos/${owner}/${repo}/contents?ref=${mainBranch}`
+      `https://api.github.com/repos/${owner}/${repo}/contents?ref=${mainBranch}`,
+      `${owner}/${repo}/root`,
+      "directory"
     );
     
-    if (!rootContent) return null;
+    if (!rootContent) {
+      console.error("Failed to fetch root content");
+      return null;
+    }
+    
     filesMap[""] = rootContent;
+    console.log(`Fetched ${rootContent.length} files/directories in root`);
     
     // Estimate additional API calls based on directory count
     const dirCount = rootContent.filter(item => item.type === "dir").length;
@@ -225,11 +249,14 @@ export const fetchRepositoryData = async (
       for (const dir of dirContent) {
         const dirPath = dir.path;
         const files = await fetchWithProgress<GitHubFile[]>(
-          `https://api.github.com/repos/${owner}/${repo}/contents/${dirPath}?ref=${mainBranch}`
+          `https://api.github.com/repos/${owner}/${repo}/contents/${dirPath}?ref=${mainBranch}`,
+          dirPath,
+          "directory"
         );
         
         if (files) {
           filesMap[dirPath] = files;
+          console.log(`Fetched ${files.length} files/directories in ${dirPath}`);
           await fetchDirectoryContent(dirPath, depth + 1);
         }
       }
@@ -272,6 +299,8 @@ export const fetchRepositoryData = async (
       progressCallback(estimatedTotalApiCalls, estimatedTotalApiCalls, 0);
     }
 
+    console.log("Repository data fetch complete");
+    
     return {
       repo: repoData,
       branches,

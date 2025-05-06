@@ -1,5 +1,5 @@
 
-import { RepoData, RepoStats, extractRepoStats } from "./githubService";
+import { RepoData, RepoStats, extractRepoStats, ProgressCallback } from "./githubService";
 
 type AIAgent = "alphaCodeExpert" | "mindMapSpecialist" | "integrationExpert";
 
@@ -7,9 +7,6 @@ interface AIMessage {
   agent: AIAgent;
   content: string;
 }
-
-// Updated type for progress tracking callback to match GitHub service
-type ProgressCallback = (completed: number, total: number, phase?: number, filePath?: string, fileType?: string) => void;
 
 /**
  * Generate AI conversation about the repository using Gemini API when available
@@ -21,13 +18,12 @@ export const generateAIConversation = async (
   progressCallback?: ProgressCallback
 ): Promise<AIMessage[]> => {
   // Progress tracking with enhanced parameters
-  const updateProgress = (progress: number) => {
+  const updateProgress = (progress: number, phase: number = 1) => {
     if (progressCallback) {
       // Convert single progress value to the expected callback format (completed, total, phase)
-      // Use phase 1 for AI conversation generation
       const total = 100;
       const completed = Math.floor(progress);
-      progressCallback(completed, total, 1);
+      progressCallback(completed, total, phase);
     }
   };
   
@@ -37,9 +33,10 @@ export const generateAIConversation = async (
   const repoStats = extractRepoStats(repoData);
   
   try {
+    console.log("Starting AI conversation generation");
     // If we have a Gemini API key, use it to generate the conversation
     if (apiKey) {
-      updateProgress(20); // Start progress at 20%
+      updateProgress(20, 1); // Start progress at 20% for phase 1
       
       // Prepare repository data for the Gemini API
       const repoSummary = {
@@ -53,42 +50,48 @@ export const generateAIConversation = async (
         directoryStructure: getDirectoryStructureSummary(repoData),
       };
       
-      updateProgress(40); // Update progress to 40%
+      updateProgress(40, 1); // Update progress to 40%
+      console.log("Calling Gemini API");
       
       // Call Gemini API
       const response = await callGeminiAPI(apiKey, repoSummary);
-      updateProgress(80); // Update progress to 80%
+      updateProgress(80, 1); // Update progress to 80%
+      console.log("Gemini API response received");
       
       // Parse the response or use fallback if needed
       const messages = parseGeminiResponse(response, repoSummary);
       
       // Complete analysis
-      updateProgress(100); // Complete progress
+      updateProgress(100, 1); // Complete progress
+      console.log("AI conversation generation complete");
       return messages;
     } else {
       // No API key provided, generate mock conversation
-      updateProgress(30); // Start at 30% for mock data
+      updateProgress(30, 1); // Start at 30% for mock data
+      console.log("No API key provided, using mock data");
       
       // Simulate API delay for more natural experience
       await new Promise(resolve => setTimeout(resolve, 1000));
-      updateProgress(60); // Update to 60%
+      updateProgress(60, 1); // Update to 60%
       
       // Get mock data
       const mockMessages = generateEnhancedMockConversation(repoData);
       
       // Simulate more processing
       await new Promise(resolve => setTimeout(resolve, 800));
-      updateProgress(100); // Complete progress
+      updateProgress(100, 1); // Complete progress
+      console.log("Mock AI conversation generation complete");
       return mockMessages;
     }
   } catch (error) {
     console.error("Error generating AI conversation:", error);
     // Fall back to mock data in case of error
-    updateProgress(50); // Show some progress 
+    updateProgress(50, 1); // Show some progress 
     
     // Small delay before returning mock data to prevent jarring UI transition
     await new Promise(resolve => setTimeout(resolve, 800));
-    updateProgress(100); // Complete progress
+    updateProgress(100, 1); // Complete progress
+    console.log("Error in AI generation, falling back to mock data");
     
     return generateEnhancedMockConversation(repoData);
   }

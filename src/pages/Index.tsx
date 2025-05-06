@@ -25,7 +25,15 @@ const Index = () => {
   useEffect(() => {
     if (!geminiApiKey && !gitHubApiKey) {
       setIsSettingsOpen(true);
-      toast.info("Please configure your API keys to get started.");
+      toast.info("Please configure your API keys to get started. At minimum, a GitHub API key is recommended to avoid rate limits.");
+    } else if (!gitHubApiKey) {
+      toast.info("Adding a GitHub API key is recommended to avoid rate limits.", {
+        duration: 5000,
+        action: {
+          label: "Configure",
+          onClick: () => setIsSettingsOpen(true),
+        },
+      });
     }
   }, [geminiApiKey, gitHubApiKey]);
 
@@ -35,13 +43,19 @@ const Index = () => {
   };
 
   const handleSubmit = () => {
-    if (!gitHubApiKey) {
-      toast.info("No GitHub API key provided. Repository analysis may be limited due to API rate limits.");
-    }
-
     if (!isValidGithubUrl(repoUrl)) {
       toast.error("Please enter a valid GitHub repository URL");
       return;
+    }
+
+    if (!gitHubApiKey) {
+      toast.warning("No GitHub API key provided. Repository analysis may be limited due to API rate limits.", {
+        duration: 5000,
+        action: {
+          label: "Configure",
+          onClick: () => setIsSettingsOpen(true),
+        },
+      });
     }
 
     setAnalyzedRepo(repoUrl);
@@ -59,10 +73,7 @@ const Index = () => {
       // Force a small delay before re-analysis to ensure the key is saved
       setTimeout(() => {
         setAppState("analyzing");
-        setTimeout(() => {
-          setAppState("result");
-        }, 100);
-      }, 100);
+      }, 300);
     }
   };
 

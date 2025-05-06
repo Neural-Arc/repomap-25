@@ -30,13 +30,17 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const setGeminiApiKey = (key: string) => {
-    localStorage.setItem("alphacode_gemini_api_key", key);
-    setGeminiApiKeyState(key);
+    // Trim whitespace from key
+    const trimmedKey = key.trim();
+    localStorage.setItem("alphacode_gemini_api_key", trimmedKey);
+    setGeminiApiKeyState(trimmedKey);
   };
 
   const setGitHubApiKey = (key: string) => {
-    localStorage.setItem("alphacode_github_api_key", key);
-    setGitHubApiKeyState(key);
+    // Trim whitespace from key
+    const trimmedKey = key.trim();
+    localStorage.setItem("alphacode_github_api_key", trimmedKey);
+    setGitHubApiKeyState(trimmedKey);
   };
 
   const clearGeminiApiKey = () => {

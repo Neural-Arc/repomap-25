@@ -15,8 +15,6 @@ import {
   Code,
   Folder,
   GitBranch,
-  Archive,
-  X,
   Braces
 } from "lucide-react";
 import { 
@@ -119,9 +117,11 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
   const [resultsReady, setResultsReady] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'messages'>('messages');
+  // Track whether we've started the AI conversation
+  const aiConversationStarted = useRef(false);
   
-  // Define analysis phases
-  const phases: AnalysisPhase[] = [
+  // Define analysis phases with initial state
+  const [phases, setPhases] = useState<AnalysisPhase[]>([
     { 
       id: "structure", 
       name: "Repository structure", 
@@ -154,7 +154,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       progress: 0,
       icon: <GitBranch className="h-4 w-4" />
     }
-  ];
+  ]);
   
   // Initialize a random programming fact
   useEffect(() => {
@@ -207,6 +207,43 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [visibleIndex]);
   
+  // Helper function to update phase status
+  const updatePhaseStatus = (phaseIndex: number, status: 'pending' | 'in-progress' | 'completed') => {
+    setPhases(prevPhases => {
+      const updatedPhases = [...prevPhases];
+      updatedPhases[phaseIndex] = {
+        ...updatedPhases[phaseIndex],
+        status
+      };
+      
+      return updatedPhases;
+    });
+    
+    if (status === 'in-progress') {
+      setActivePhaseIndex(phaseIndex);
+    }
+  };
+  
+  // Helper function to update phase progress
+  const updatePhaseProgress = (phaseIndex: number, progress: number | ((prev: number) => number)) => {
+    setPhases(prevPhases => {
+      const updatedPhases = [...prevPhases];
+      const currentProgress = updatedPhases[phaseIndex].progress;
+      
+      updatedPhases[phaseIndex] = {
+        ...updatedPhases[phaseIndex],
+        progress: typeof progress === 'function' ? progress(currentProgress) : progress
+      };
+      
+      // Update phase detail based on the current file/directory
+      if (phaseIndex === activePhaseIndex && currentFile && currentDirectory) {
+        updatedPhases[phaseIndex].detail = `${currentDirectory}/${currentFile}`;
+      }
+      
+      return updatedPhases;
+    });
+  };
+  
   // Step 1: Fetch repository data and update progress
   useEffect(() => {
     // Fetch real data from GitHub API
@@ -215,6 +252,15 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       setShowMessages(true);
       setResultsReady(false);
       setAnalysisError(null);
+      aiConversationStarted.current = false;
+      
+      // Reset phases
+      setPhases(phases => phases.map(phase => ({
+        ...phase,
+        status: 'pending',
+        progress: 0,
+        detail: undefined
+      })));
       
       // Parse the GitHub URL to get owner and repo
       const repoInfo = parseGitHubUrl(repoUrl);
@@ -222,16 +268,17 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         // Add error message to conversation
         setMessages([
           {
-            agent: "integrationExpert" as AIAgent,
+            agent: "integrationExpert",
             content: "I couldn't parse the GitHub URL. Please check the format and try again."
           }
         ]);
+        setVisibleIndex(0);
         setIsLoading(false);
         setAnalysisError("Invalid GitHub URL");
         return;
       }
       
-      // Update phase status
+      // Update phase status for repository structure
       updatePhaseStatus(0, 'in-progress');
       
       // Add initial conversation message
@@ -241,10 +288,11 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
           content: `Starting analysis of ${repoInfo.owner}/${repoInfo.repo}. Let's see what we can discover!`
         }
       ];
+      
       setMessages(initialMessages);
       setVisibleIndex(0);
       
-      // Set up a progress tracker with enhanced details
+      // Progress callback for repository data fetching
       const progressCallback = (completed: number, total: number, phase: number = 0, filePath?: string, fileType?: string) => {
         setApiCallsCompleted(completed);
         setTotalApiCalls(total);
@@ -275,9 +323,10 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
           }
         }
         
-        // Update appropriate phase progress
+        // Update phase progress for appropriate phase (0 = structure, 1 = code analysis)
+        const phaseIndex = phase >= 0 && phase < phases.length ? phase : 0;
         const phaseProgress = Math.min(Math.floor((completed / total) * 100), 100);
-        updatePhaseProgress(phase, phaseProgress);
+        updatePhaseProgress(phaseIndex, phaseProgress);
         
         // Calculate more accurate remaining time based on progress rate
         const elapsedSecs = (Date.now() - analysisStartTime) / 1000;
@@ -318,6 +367,10 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         setFileCount(files);
         setDirectoryCount(directories);
         
+        // Mark phase 1 (structure) as complete
+        updatePhaseStatus(0, 'completed');
+        updatePhaseProgress(0, 100);
+        
         // Add initial findings message
         const findingsMessage: Message = {
           agent: "alphaCodeExpert",
@@ -327,23 +380,26 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         setMessages(prev => [...prev, findingsMessage]);
         setVisibleIndex(prev => prev + 1);
         
-        // Mark phase 1 as complete
-        updatePhaseStatus(0, 'completed');
-        updatePhaseProgress(0, 100);
-        
         // Start phase 2 - code analysis
         updatePhaseStatus(1, 'in-progress');
         setActivePhaseIndex(1);
         
         // Generate AI conversation based on the repository data
-        const progressPhase2 = (progress: number) => {
-          updatePhaseProgress(1, progress);
-        };
+        const aiMessages = await generateAIConversation(
+          repoUrl, 
+          data, 
+          geminiApiKey, 
+          // Progress callback for AI generation
+          (completed, total, phase = 1) => {
+            const aiProgress = Math.min(Math.floor((completed / total) * 100), 100);
+            updatePhaseProgress(phase, aiProgress);
+          }
+        );
         
-        // Generate the AI conversation
-        const aiMessages = await generateAIConversation(repoUrl, data, geminiApiKey, progressPhase2);
+        // Mark AI conversation as started to prevent duplication
+        aiConversationStarted.current = true;
         
-        // Mark phase 2 as complete
+        // Mark phase 2 (code analysis) as complete
         updatePhaseStatus(1, 'completed');
         updatePhaseProgress(1, 100);
         
@@ -351,7 +407,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         updatePhaseStatus(2, 'in-progress');
         setActivePhaseIndex(2);
         
-        // Add visualization message
+        // Add visualization message from mindMapSpecialist
         const visualizationMessage: Message = {
           agent: "mindMapSpecialist",
           content: `I'm creating a visual representation of the repository structure. This will help you understand the organization and relationships between different components.`
@@ -361,10 +417,12 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         setVisibleIndex(prev => prev + 1);
         
         // Simulate visualization generation with progress updates
+        let visualProgress = 0;
         const visualizationInterval = setInterval(() => {
-          updatePhaseProgress(2, prev => Math.min(prev + 10, 100));
+          visualProgress += 10;
+          updatePhaseProgress(2, Math.min(visualProgress, 100));
           
-          if (phases[2].progress >= 100) {
+          if (visualProgress >= 100) {
             clearInterval(visualizationInterval);
             
             // Mark visualization phase as complete
@@ -374,31 +432,39 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
             updatePhaseStatus(3, 'in-progress');
             setActivePhaseIndex(3);
             
-            // Add the AI conversation messages
-            setTimeout(() => {
-              // Add the generated conversation messages
-              setMessages(prev => [...prev, ...aiMessages.slice(2)]); // Skip the first two messages as we've added custom ones
-              
-              // Update visible index to show one message at a time
-              const showMessagesInterval = setInterval(() => {
-                setVisibleIndex(prev => {
-                  const newIndex = prev + 1;
-                  if (newIndex >= messages.length + aiMessages.length - 2) {
-                    clearInterval(showMessagesInterval);
-                    
-                    // Complete the final phase
-                    updatePhaseProgress(3, 100);
-                    updatePhaseStatus(3, 'completed');
-                    
-                    // Mark analysis as complete
-                    setAnalysisComplete(true);
-                    setIsLoading(false);
-                    setResultsReady(true);
-                  }
-                  return newIndex;
-                });
-              }, 1500);
-            }, 1000);
+            // Add the AI conversation messages - skip the first 2 as we're adding custom ones
+            // Start with the 3rd message from aiMessages 
+            const remainingMessages = aiMessages.slice(2);
+            
+            // Function to add messages one by one with animation
+            const addMessagesSequentially = (index = 0) => {
+              if (index < remainingMessages.length) {
+                setMessages(prev => [...prev, remainingMessages[index]]);
+                setVisibleIndex(prev => prev + 1);
+                
+                // Update progress for finalizing phase
+                const finalProgress = Math.min(
+                  Math.floor((index / remainingMessages.length) * 100), 
+                  100
+                );
+                updatePhaseProgress(3, finalProgress);
+                
+                // Schedule next message
+                setTimeout(() => addMessagesSequentially(index + 1), 1500);
+              } else {
+                // All messages added, complete the final phase
+                updatePhaseProgress(3, 100);
+                updatePhaseStatus(3, 'completed');
+                
+                // Mark analysis as complete
+                setAnalysisComplete(true);
+                setIsLoading(false);
+                setResultsReady(true);
+              }
+            };
+            
+            // Start adding messages
+            setTimeout(() => addMessagesSequentially(), 1000);
           }
         }, 300);
       } catch (error) {
@@ -407,10 +473,11 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         
         setMessages([
           {
-            agent: "integrationExpert" as AIAgent,
+            agent: "integrationExpert",
             content: `Analysis error: ${errorMsg}`
           }
         ]);
+        setVisibleIndex(0);
         setIsLoading(false);
         setAnalysisError(errorMsg);
         toast.error(`Analysis error: ${errorMsg}`);
@@ -418,7 +485,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     };
     
     fetchData();
-  }, [repoUrl, gitHubApiKey, geminiApiKey, onComplete, phases]);
+  }, [repoUrl, gitHubApiKey, geminiApiKey, onComplete]);
   
   // Helper function to get a random agent for messages
   const getRandomAgent = (): AIAgent => {
@@ -440,37 +507,6 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     ];
     
     return fileComments[Math.floor(Math.random() * fileComments.length)];
-  };
-  
-  // Helper function to update phase status
-  const updatePhaseStatus = (phaseIndex: number, status: 'pending' | 'in-progress' | 'completed') => {
-    const updatedPhases = [...phases];
-    updatedPhases[phaseIndex] = {
-      ...updatedPhases[phaseIndex],
-      status
-    };
-    
-    if (status === 'in-progress') {
-      setActivePhaseIndex(phaseIndex);
-    }
-  };
-  
-  // Helper function to update phase progress
-  const updatePhaseProgress = (phaseIndex: number, progress: number | ((prev: number) => number)) => {
-    const updatedPhases = [...phases];
-    const currentProgress = updatedPhases[phaseIndex].progress;
-    
-    updatedPhases[phaseIndex] = {
-      ...updatedPhases[phaseIndex],
-      progress: typeof progress === 'function' ? progress(currentProgress) : progress
-    };
-    
-    if (phaseIndex === activePhaseIndex) {
-      // Update phase detail based on the current file/directory
-      if (currentFile && currentDirectory) {
-        updatedPhases[phaseIndex].detail = `${currentDirectory}/${currentFile}`;
-      }
-    }
   };
   
   const handleMessageComplete = () => {

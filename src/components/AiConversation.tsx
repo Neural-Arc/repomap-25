@@ -555,7 +555,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       `Looking at ${fileName} in the ${dirPath || 'root'} directory. Nice ${extension} code here!`,
       `Analyzing ${fileName}... This ${extension} file has some interesting patterns.`,
       `Found ${fileName} - this looks like a key component in the ${dirPath || 'root'} structure.`,
-      `Examining ${fileName}... I see some well-structured ${extension} code.`,
+      `Examining ${fileName}... I see some well-structured ${extension} code.`,\
       `${fileName} appears to be ${Math.random() > 0.5 ? 'well documented' : 'could use more comments'}.`,
       `This ${extension} file (${fileName}) is contributing to the overall architecture.`,
       `${fileName} seems to be handling ${dirPath.includes('util') ? 'utility functions' : dirPath.includes('component') ? 'UI components' : 'core functionality'}.`,

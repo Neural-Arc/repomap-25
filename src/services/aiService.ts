@@ -1,4 +1,3 @@
-
 import { RepoData, RepoStats, extractRepoStats, ProgressCallback } from "./githubService";
 
 type AIAgent = "alphaCodeExpert" | "mindMapSpecialist" | "integrationExpert";
@@ -34,8 +33,11 @@ export const generateAIConversation = async (
   
   try {
     console.log("Starting AI conversation generation");
+    // Use environment variable API key if available, or fall back to provided key
+    const geminiApiKey = apiKey || import.meta.env.VITE_GEMINI_API_KEY || null;
+    
     // If we have a Gemini API key, use it to generate the conversation
-    if (apiKey) {
+    if (geminiApiKey) {
       updateProgress(20, 1); // Start progress at 20% for phase 1
       
       // Prepare repository data for the Gemini API
@@ -53,8 +55,8 @@ export const generateAIConversation = async (
       updateProgress(40, 1); // Update progress to 40%
       console.log("Calling Gemini API");
       
-      // Call Gemini API
-      const response = await callGeminiAPI(apiKey, repoSummary);
+      // Call Gemini API with the environment variable or provided key
+      const response = await callGeminiAPI(geminiApiKey, repoSummary);
       updateProgress(80, 1); // Update progress to 80%
       console.log("Gemini API response received");
       

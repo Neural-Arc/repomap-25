@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 
 interface GitHubFile {
@@ -116,8 +115,11 @@ export const fetchRepositoryData = async (
     Accept: "application/vnd.github.v3+json",
   };
 
-  if (apiKey) {
-    headers.Authorization = `Bearer ${apiKey}`;
+  // Use environment variable API key if available, or fall back to provided key
+  const githubApiKey = apiKey || import.meta.env.VITE_GITHUB_API_KEY || null;
+  
+  if (githubApiKey) {
+    headers.Authorization = `Bearer ${githubApiKey}`;
   }
 
   // Track API calls for progress reporting

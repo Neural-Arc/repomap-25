@@ -71,7 +71,7 @@ const MindMap: React.FC<MindMapProps> = ({ repoUrl }) => {
         <div className="flex flex-col items-center text-center">
           <p className="text-destructive text-lg mb-4">{error}</p>
           <p className="text-muted-foreground">
-            Please make sure the repository exists and is public, or try adding a GitHub API key in settings.
+            Please make sure the repository exists and is public, or check that the GitHub API key is correct in your .env file.
           </p>
         </div>
       </div>

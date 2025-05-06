@@ -4,81 +4,30 @@ import React, { createContext, useState, useContext, useEffect } from "react";
 interface ApiContextType {
   geminiApiKey: string | null;
   gitHubApiKey: string | null;
-  setGeminiApiKey: (key: string) => void;
-  setGitHubApiKey: (key: string) => void;
-  clearGeminiApiKey: () => void;
-  clearGitHubApiKey: () => void;
   hasApiKeys: () => boolean;
 }
 
 const ApiContext = createContext<ApiContextType | undefined>(undefined);
 
 export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [geminiApiKey, setGeminiApiKeyState] = useState<string | null>(null);
-  const [gitHubApiKey, setGitHubApiKeyState] = useState<string | null>(null);
+  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
+  const [gitHubApiKey, setGitHubApiKey] = useState<string | null>(null);
 
-  // Load API keys from localStorage on mount
+  // Load API keys from environment variables on mount
   useEffect(() => {
     try {
-      const storedGeminiKey = localStorage.getItem("alphacode_gemini_api_key");
-      if (storedGeminiKey) {
-        setGeminiApiKeyState(storedGeminiKey);
-      }
+      // Access environment variables via import.meta.env (Vite's approach)
+      const geminiKey = import.meta.env.VITE_GEMINI_API_KEY || null;
+      const githubKey = import.meta.env.VITE_GITHUB_API_KEY || null;
       
-      const storedGitHubKey = localStorage.getItem("alphacode_github_api_key");
-      if (storedGitHubKey) {
-        setGitHubApiKeyState(storedGitHubKey);
-      }
+      setGeminiApiKey(geminiKey);
+      setGitHubApiKey(githubKey);
       
-      console.log("API keys loaded from localStorage");
+      console.log("API keys loaded from environment variables");
     } catch (error) {
-      console.error("Error loading API keys from localStorage:", error);
+      console.error("Error loading API keys from environment variables:", error);
     }
   }, []);
-
-  const setGeminiApiKey = (key: string) => {
-    try {
-      // Trim whitespace from key
-      const trimmedKey = key.trim();
-      localStorage.setItem("alphacode_gemini_api_key", trimmedKey);
-      setGeminiApiKeyState(trimmedKey);
-      console.log("Gemini API key saved");
-    } catch (error) {
-      console.error("Error saving Gemini API key:", error);
-    }
-  };
-
-  const setGitHubApiKey = (key: string) => {
-    try {
-      // Trim whitespace from key
-      const trimmedKey = key.trim();
-      localStorage.setItem("alphacode_github_api_key", trimmedKey);
-      setGitHubApiKeyState(trimmedKey);
-      console.log("GitHub API key saved");
-    } catch (error) {
-      console.error("Error saving GitHub API key:", error);
-    }
-  };
-
-  const clearGeminiApiKey = () => {
-    try {
-      localStorage.removeItem("alphacode_gemini_api_key");
-      setGeminiApiKeyState(null);
-      console.log("Gemini API key cleared");
-    } catch (error) {
-      console.error("Error clearing Gemini API key:", error);
-    }
-  };
-
-  const clearGitHubApiKey = () => {
-    try {
-      localStorage.removeItem("alphacode_github_api_key");
-      setGitHubApiKeyState(null);
-      console.log("GitHub API key cleared");
-    } catch (error) {
-      console.error("Error clearing GitHub API key:", error);
-    }
-  };
 
   const hasApiKeys = () => {
     return !!geminiApiKey || !!gitHubApiKey;
@@ -89,10 +38,6 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{ 
         geminiApiKey, 
         gitHubApiKey,
-        setGeminiApiKey, 
-        setGitHubApiKey,
-        clearGeminiApiKey, 
-        clearGitHubApiKey,
         hasApiKeys
       }}
     >

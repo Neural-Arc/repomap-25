@@ -1,10 +1,8 @@
 
 import React, { useState, useEffect } from "react";
-import { Settings } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useApi } from "@/contexts/ApiContext";
-import SettingsDialog from "@/components/SettingsDialog";
+import { Button } from "@/components/ui/button";
 import AiConversation from "@/components/AiConversation";
 import RepositoryVisualizer from "@/components/RepositoryVisualizer";
 import RepoDocumentation from "@/components/RepoDocumentation";
@@ -14,9 +12,8 @@ import { toast } from "sonner";
 type AppState = "input" | "analyzing" | "result";
 
 const Index = () => {
-  const { geminiApiKey, gitHubApiKey, hasApiKeys } = useApi();
+  const { gitHubApiKey, hasApiKeys } = useApi();
   const [repoUrl, setRepoUrl] = useState("");
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [appState, setAppState] = useState<AppState>("input");
   const [analyzedRepo, setAnalyzedRepo] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("visualization");
@@ -24,18 +21,9 @@ const Index = () => {
   // Check for missing API keys when component mounts
   useEffect(() => {
     if (!hasApiKeys()) {
-      setIsSettingsOpen(true);
-      toast.info("Please configure your API keys to get started. At minimum, a GitHub API key is recommended to avoid rate limits.");
-    } else if (!gitHubApiKey) {
-      toast.info("Adding a GitHub API key is recommended to avoid rate limits.", {
-        duration: 5000,
-        action: {
-          label: "Configure",
-          onClick: () => setIsSettingsOpen(true),
-        },
-      });
+      toast.error("API keys not found in environment variables. Please add them to your .env file.");
     }
-  }, [geminiApiKey, gitHubApiKey, hasApiKeys]);
+  }, [hasApiKeys]);
 
   const isValidGithubUrl = (url: string): boolean => {
     const regex = /^https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/;
@@ -49,13 +37,7 @@ const Index = () => {
     }
 
     if (!gitHubApiKey) {
-      toast.warning("No GitHub API key provided. Repository analysis may be limited due to API rate limits.", {
-        duration: 5000,
-        action: {
-          label: "Configure",
-          onClick: () => setIsSettingsOpen(true),
-        },
-      });
+      toast.warning("GitHub API key not found in environment variables. Repository analysis may be limited due to API rate limits.");
     }
 
     console.log("Starting analysis for repository:", repoUrl);
@@ -68,17 +50,6 @@ const Index = () => {
     setAppState("result");
   };
 
-  const handleApiKeyChange = () => {
-    // If we're already showing results, no need to prompt the user
-    if (appState === "result" && analyzedRepo) {
-      toast.info("API key updated. Refreshing repository data.");
-      // Force a small delay before re-analysis to ensure the key is saved
-      setTimeout(() => {
-        setAppState("analyzing");
-      }, 300);
-    }
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-background/80 to-background via-background/40">
       <header className="border-b border-border/40 p-4 bg-gradient-to-r from-background to-muted/20 backdrop-blur-sm sticky top-0 z-10">
@@ -86,14 +57,6 @@ const Index = () => {
           <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">
             AlphaCode Explorer
           </h1>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setIsSettingsOpen(true)}
-            className="rounded-full hover:bg-muted/60 transition-colors border-border/50"
-          >
-            <Settings size={20} />
-          </Button>
         </div>
       </header>
 
@@ -147,12 +110,6 @@ const Index = () => {
                   Analyze Repository
                 </Button>
               </div>
-              
-              {!gitHubApiKey && (
-                <p className="text-amber-500 text-sm animate-fade-in" style={{animationDelay: "0.6s"}}>
-                  Note: Adding a GitHub API key in settings is recommended to avoid rate limits.
-                </p>
-              )}
             </div>
           </div>
         )}
@@ -205,12 +162,6 @@ const Index = () => {
           AlphaCode Explorer — Visualize and understand GitHub repositories with AI
         </div>
       </footer>
-
-      <SettingsDialog 
-        open={isSettingsOpen} 
-        onOpenChange={setIsSettingsOpen} 
-        onApiKeyChange={handleApiKeyChange} 
-      />
     </div>
   );
 };

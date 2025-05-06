@@ -1,6 +1,5 @@
 
 import React, { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useApi } from "@/contexts/ApiContext";
 import { fetchRepositoryData } from "@/services/githubService";

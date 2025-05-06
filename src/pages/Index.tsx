@@ -67,10 +67,10 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b border-border p-4 bg-gradient-to-r from-background to-muted">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-background to-background/95">
+      <header className="border-b border-border/40 p-4 bg-gradient-to-r from-background to-muted/20 backdrop-blur-sm">
         <div className="container flex justify-between items-center">
-          <h1 className="text-2xl font-bold tracking-tight">AlphaCode</h1>
+          <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary to-blue-500 text-transparent bg-clip-text">AlphaCode</h1>
           <Button
             variant="outline"
             size="icon"
@@ -95,7 +95,7 @@ const Index = () => {
 
               <div className="flex flex-col space-y-4 w-full animate-fade-in" style={{animationDelay: "0.4s"}}>
                 <Input
-                  className="h-16 text-lg bg-secondary border-border transition-all focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-0"
+                  className="h-16 text-lg bg-secondary/50 backdrop-blur-sm border-border/40 transition-all focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-0"
                   placeholder="https://github.com/username/repository"
                   value={repoUrl}
                   onChange={(e) => setRepoUrl(e.target.value)}
@@ -106,7 +106,7 @@ const Index = () => {
                 <Button
                   onClick={handleSubmit}
                   size="lg"
-                  className="text-lg h-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-600 hover:to-blue-800 transition-all"
+                  className="text-lg h-12 bg-gradient-to-r from-blue-600/90 to-blue-700/90 hover:from-blue-600 hover:to-blue-800 backdrop-blur-sm border border-blue-500/20 transition-all"
                   disabled={!repoUrl}
                 >
                   Analyze Repository
@@ -136,9 +136,9 @@ const Index = () => {
               onValueChange={setActiveTab}
               className="w-full"
             >
-              <TabsList className="mb-6">
-                <TabsTrigger value="mindmap">Mind Map</TabsTrigger>
-                <TabsTrigger value="documentation">Documentation</TabsTrigger>
+              <TabsList className="mb-6 bg-muted/30 backdrop-blur-sm border border-border/30 p-1">
+                <TabsTrigger value="mindmap" className="data-[state=active]:bg-background/60 data-[state=active]:backdrop-blur-md">Mind Map</TabsTrigger>
+                <TabsTrigger value="documentation" className="data-[state=active]:bg-background/60 data-[state=active]:backdrop-blur-md">Documentation</TabsTrigger>
               </TabsList>
               <TabsContent value="mindmap" className="mt-0 flex-grow">
                 <MindMap repoUrl={analyzedRepo} />
@@ -152,7 +152,7 @@ const Index = () => {
               <Button 
                 variant="outline" 
                 onClick={() => setAppState("input")}
-                className="text-muted-foreground hover:bg-muted transition-colors"
+                className="text-muted-foreground hover:bg-muted/50 transition-colors backdrop-blur-sm border-border/40"
               >
                 Analyze Another Repository
               </Button>
@@ -161,7 +161,7 @@ const Index = () => {
         )}
       </main>
 
-      <footer className="border-t border-border p-4 bg-gradient-to-r from-background to-muted">
+      <footer className="border-t border-border/40 p-4 bg-gradient-to-r from-background to-muted/20 backdrop-blur-sm">
         <div className="container text-center text-sm text-muted-foreground">
           AlphaCode - GitHub Repository Mind Mapper
         </div>

@@ -1,15 +1,20 @@
 
 import React, { useState, useEffect, useRef } from "react";
-import { Avatar } from "@/components/ui/avatar";
-import TypeWriter from "./TypeWriter";
-import { Progress } from "@/components/ui/progress";
 import { useApi } from "@/contexts/ApiContext";
-import { CheckCircle, Circle, AlertCircle, Clock, Loader } from "lucide-react";
+import TypeWriter from "./TypeWriter";
 import { parseGitHubUrl, fetchRepositoryData, RepoData } from "@/services/githubService";
 import { generateAIConversation } from "@/services/aiService";
-import CodeScanningVisualization from "./CodeScanningVisualization";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { AlertCircle, CheckCircle, Clock, Loader } from "lucide-react";
+import { 
+  Tabs, 
+  TabsContent, 
+  TabsList, 
+  TabsTrigger 
+} from "@/components/ui/tabs";
 
 // Define proper types
 type AIAgent = "alphaCodeExpert" | "mindMapSpecialist" | "integrationExpert";
@@ -72,13 +77,8 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [showMessages, setShowMessages] = useState(false);
   const [resultsReady, setResultsReady] = useState(false);
-  const [activeCodeVisPhase, setActiveCodeVisPhase] = useState("");
   const [analysisError, setAnalysisError] = useState<string | null>(null);
-  
-  // Get the current active phase name
-  const currentPhase = phases.find(phase => phase.status === 'in-progress')?.name || 
-                       phases.find(phase => phase.status === 'pending')?.name || 
-                       "Analysis complete";
+  const [activeTab, setActiveTab] = useState<'progress' | 'messages'>('progress');
   
   // Update elapsed time and countdown
   useEffect(() => {
@@ -115,10 +115,11 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
   // Only start showing messages when analysis is complete and we're ready to display
   useEffect(() => {
     if (analysisComplete && showMessages && visibleIndex === -1 && messages.length > 0) {
-      // Add a small delay before starting the conversation
+      // Transition directly to chat once data is loaded
       setTimeout(() => {
         setVisibleIndex(0);
-      }, 1500);
+        setActiveTab('messages');
+      }, 500);
     }
   }, [analysisComplete, showMessages, messages, visibleIndex]);
   
@@ -127,19 +128,13 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     if (resultsReady && !isLoading) {
       setTimeout(() => {
         onComplete();
-      }, 1000); // Small delay to ensure everything is fully loaded
+      }, 800); // Small delay to ensure everything is fully loaded
     }
   }, [resultsReady, onComplete, isLoading]);
   
-  // Update the active phase for the code scanning visualization
   useEffect(() => {
-    const activePhase = phases.find(p => p.status === 'in-progress');
-    if (activePhase) {
-      setActiveCodeVisPhase(activePhase.name);
-    } else {
-      setActiveCodeVisPhase("");
-    }
-  }, [phases]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [visibleIndex]);
   
   // Step 1: Fetch repository data and update progress
   useEffect(() => {
@@ -252,12 +247,12 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
             // Mark analysis as complete but don't show messages yet
             setAnalysisComplete(true);
             
-            // Wait a little bit before showing the messages to ensure smooth transition
+            // Transition directly to chat once data is loaded
             setTimeout(() => {
               setShowMessages(true);
-            }, 1000);
-          }, 1500);
-        }, 2000);
+            }, 500);
+          }, 800);
+        }, 1000);
       } catch (error) {
         console.error("Error in AI conversation:", error);
         const errorMsg = error instanceof Error ? error.message : "Unknown error occurred";
@@ -295,21 +290,17 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     );
   };
   
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [visibleIndex]);
-  
   const handleMessageComplete = () => {
     if (visibleIndex < messages.length - 1) {
       setTimeout(() => {
         setVisibleIndex(prev => prev + 1);
-      }, 1500); // Increased delay between messages for better readability
+      }, 1000); // Delay between messages for better readability
     } else {
       setTimeout(() => {
         setProgress(100); // Set to 100% when all messages are displayed
         setIsLoading(false);
         setResultsReady(true); // Only now are results truly ready to be displayed
-      }, 1500); // Delay before completing the conversation
+      }, 800); // Delay before completing the conversation
     }
   };
 
@@ -320,170 +311,234 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
+  // Calculate progress percentage for the radial progress indicator
+  const getProgressPercentage = (phase: AnalysisPhase) => {
+    return phase.status === 'completed' ? 100 : phase.progress;
+  };
+
+  // Get status indicator component based on phase status
+  const getStatusIndicator = (status: 'pending' | 'in-progress' | 'completed') => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'in-progress':
+        return <Loader className="h-4 w-4 text-blue-500 animate-spin" />;
+      default:
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
   return (
-    <div className="flex flex-col space-y-4 p-4 max-w-3xl mx-auto h-full overflow-y-auto">
-      <div className="text-center mb-8">
-        <h2 className="text-lg font-medium text-muted-foreground">
-          {isLoading ? "Repository Analysis in Progress" : "AI Analysis Results"}
-        </h2>
-        
-        <div className="mt-4 space-y-3">
-          <Progress value={progress} className="h-2" />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
-              {isLoading && <Loader className="h-3 w-3 animate-spin" />}
-              {progress}% complete
-            </span>
+    <div className="flex flex-col space-y-6 p-4 max-w-3xl mx-auto h-full">
+      {/* Header */}
+      <Card className="bg-gradient-to-br from-card/80 to-background/60 backdrop-blur-md border-border/50 shadow-lg overflow-hidden">
+        <CardContent className="p-6">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2 bg-gradient-to-r from-primary to-blue-500 text-transparent bg-clip-text">
+              {isLoading ? "Repository Analysis" : "AI Analysis Results"}
+            </h2>
             
-            {isLoading && timeRemaining !== null ? (
-              <div className="flex items-center gap-1 text-amber-500 font-medium">
-                <Clock className="h-3 w-3" />
-                <span>Time remaining: {formatTime(timeRemaining)}</span>
+            {isLoading && (
+              <div className="mt-4 relative">
+                {/* Radial progress indicator */}
+                <div className="w-24 h-24 mx-auto relative mb-4">
+                  <svg className="w-full h-full" viewBox="0 0 100 100">
+                    <circle 
+                      className="text-muted/20 stroke-current" 
+                      strokeWidth="8" 
+                      cx="50" 
+                      cy="50" 
+                      r="40" 
+                      fill="transparent"
+                    />
+                    <circle 
+                      className="text-primary stroke-current" 
+                      strokeWidth="8" 
+                      strokeLinecap="round" 
+                      cx="50" 
+                      cy="50" 
+                      r="40" 
+                      fill="transparent"
+                      strokeDasharray={`${2 * Math.PI * 40}`}
+                      strokeDashoffset={`${2 * Math.PI * 40 * (1 - progress / 100)}`}
+                      transform="rotate(-90 50 50)"
+                    />
+                    <text 
+                      x="50" 
+                      y="50" 
+                      className="text-xl font-bold" 
+                      dominantBaseline="middle" 
+                      textAnchor="middle"
+                      fill="currentColor"
+                    >
+                      {progress}%
+                    </text>
+                  </svg>
+                </div>
+                
+                {/* Timer display */}
+                <div className="flex justify-center items-center gap-2 text-muted-foreground mb-4">
+                  <Clock className="h-4 w-4" />
+                  {timeRemaining !== null ? (
+                    <span className="text-amber-500 font-medium">
+                      {formatTime(timeRemaining)} remaining
+                    </span>
+                  ) : (
+                    <span>Calculating time...</span>
+                  )}
+                </div>
+
+                {/* Repository info */}
+                <div className="bg-muted/30 backdrop-blur-lg rounded-lg p-3 mb-4 border border-border/50">
+                  <h3 className="text-sm font-medium mb-2">Analyzing Repository</h3>
+                  <div className="text-sm text-muted-foreground truncate">
+                    {repoUrl.replace('https://github.com/', '')}
+                  </div>
+                  
+                  {totalApiCalls > 0 && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      <Badge variant="outline" className="bg-background/50">
+                        {apiCallsCompleted} of {totalApiCalls} files analyzed
+                      </Badge>
+                    </div>
+                  )}
+                </div>
               </div>
-            ) : (
-              <span className="flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {isLoading ? "Calculating..." : `Completed in ${formatTime(elapsedTime)}`}
-              </span>
             )}
-          </div>
-          
-          {/* Prominent countdown timer when we have an estimate */}
-          {isLoading && timeRemaining !== null && (
-            <div className="bg-muted/50 border border-border rounded-lg p-4 flex items-center justify-center mt-2">
-              <div className="text-center">
-                <div className="text-3xl font-bold tabular-nums text-amber-500">
-                  {formatTime(timeRemaining)}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Estimated time remaining
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Phase progress indicators with improved visibility */}
-          <div className="space-y-2 mt-3 text-left border border-border rounded-lg p-3">
-            <h4 className="text-xs font-medium mb-2">Analysis Progress</h4>
-            {phases.map((phase, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                {phase.status === 'completed' ? (
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                ) : phase.status === 'in-progress' ? (
-                  <Circle className="h-4 w-4 text-blue-500 animate-pulse" />
-                ) : (
-                  <Circle className="h-4 w-4 text-muted-foreground" />
-                )}
-                <span className={`text-xs ${phase.status === 'in-progress' ? 'font-medium' : ''}`}>
-                  {phase.name}
+            
+            {/* Phase progress */}
+            <div className="space-y-3 bg-background/40 backdrop-blur-sm rounded-lg p-4 border border-border/30">
+              <div className="flex justify-between items-center text-sm font-medium">
+                <span>Analysis Progress</span>
+                <span className="text-xs text-muted-foreground">
+                  {isLoading ? `${progress}% complete` : 'Complete'}
                 </span>
-                <Badge 
-                  variant={phase.status === 'completed' ? 'outline' : 'secondary'} 
-                  className="ml-auto text-xs"
-                >
-                  {phase.progress}%
-                </Badge>
               </div>
-            ))}
-          </div>
-          
-          {/* Code scanning visualization */}
-          {(isLoading && phases.some(p => p.status === 'in-progress')) && (
-            <div className="mt-4">
-              <CodeScanningVisualization 
-                active={phases.some(p => p.status === 'in-progress')}
-                phase={activeCodeVisPhase}
-              />
+              
+              <div className="space-y-2.5">
+                {phases.map((phase, idx) => (
+                  <div key={idx} className="group">
+                    <div className="flex items-center gap-2">
+                      {getStatusIndicator(phase.status)}
+                      <span className={`text-xs ${phase.status === 'in-progress' ? 'font-medium text-primary' : 'text-muted-foreground'}`}>
+                        {phase.name}
+                      </span>
+                      <div className="grow">
+                        <div className="h-1.5 w-full bg-muted/30 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              phase.status === 'completed' 
+                                ? 'bg-green-500' 
+                                : phase.status === 'in-progress' 
+                                  ? 'bg-gradient-to-r from-blue-500 to-primary animate-pulse' 
+                                  : 'bg-muted'
+                            }`}
+                            style={{ width: `${getProgressPercentage(phase)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <Badge 
+                        variant={phase.status === 'completed' ? 'outline' : 'secondary'} 
+                        className="ml-auto text-xs bg-background/50 border-border/50"
+                      >
+                        {phase.progress}%
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Only show messages after analysis is complete and visibleIndex >= 0 */}
-      {showMessages && visibleIndex >= 0 && messages.slice(0, visibleIndex + 1).map((message, index) => {
-        const agent = agentConfig[message.agent];
-
-        return (
-          <div
-            key={index}
-            className={`flex items-start space-x-4 animate-fade-in ${
-              index === visibleIndex ? "opacity-100" : "opacity-90"
-            }`}
-            style={{ animationDelay: `${index * 0.2}s` }}
-          >
-            <Avatar className={`${agent.color} text-xl`}>
-              <span>{agent.avatar}</span>
-            </Avatar>
-            <div className="flex flex-col space-y-1 flex-1">
-              <span className="text-sm font-medium">{agent.name}</span>
-              <div className="rounded-lg bg-muted p-3">
-                {index === visibleIndex ? (
-                  <TypeWriter
-                    text={message.content}
-                    speed={40} // Slower typing speed for better readability
-                    onComplete={handleMessageComplete}
-                    className="text-sm"
-                  />
-                ) : (
-                  <span className="text-sm">{message.content}</span>
+      {/* Tabs for progress and messages */}
+      {(isLoading || showMessages) && (
+        <Card className="bg-gradient-to-br from-card/80 to-background/60 backdrop-blur-md border-border/50 shadow-lg overflow-hidden flex-grow">
+          <CardContent className="p-0">
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'progress' | 'messages')} className="w-full h-full">
+              <TabsList className="w-full bg-muted/30 p-1 border-b border-border/30">
+                <TabsTrigger value="progress" disabled={!isLoading}>Analysis Progress</TabsTrigger>
+                <TabsTrigger value="messages" disabled={!showMessages}>AI Conversation</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="progress" className="p-6 space-y-4 h-full">
+                {isLoading && !analysisError && (
+                  <div className="flex flex-col items-center justify-center py-8 text-center h-full">
+                    <div className="space-y-4 max-w-md">
+                      <h3 className="text-lg font-medium">
+                        {phases.find(p => p.status === 'in-progress')?.name || 'Preparing analysis'}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        We're analyzing the repository structure, examining the code patterns, and generating insights.
+                        This process may take a few moments depending on the size and complexity of the codebase.
+                      </p>
+                      
+                      <div className="flex flex-wrap gap-2 justify-center mt-4">
+                        {['Scanning', 'Analyzing', 'Processing'].map((action, i) => (
+                          <Badge key={i} variant="outline" className="bg-background/30 animate-pulse">
+                            {action}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 )}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-      <div ref={messagesEndRef} />
-      
-      {/* Show loading state when no messages are visible yet */}
-      {(!showMessages || visibleIndex < 0) && isLoading && !analysisError && (
-        <div className="flex flex-col items-center justify-center py-10 text-center">
-          <div className="relative">
-            <Loader className="h-10 w-10 animate-spin text-primary" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-xs font-bold">{progress}%</span>
-            </div>
-          </div>
-          
-          <span className="text-lg font-medium mb-2 mt-4">{currentPhase}</span>
-          <p className="text-sm text-muted-foreground max-w-md">
-            We're examining the codebase, analyzing patterns, and generating insights.
-            This may take a moment depending on the repository size.
-          </p>
-          
-          {/* API call progress information */}
-          {totalApiCalls > 0 && (
-            <div className="mt-4 text-xs text-muted-foreground">
-              <span>{apiCallsCompleted} of {totalApiCalls} API calls completed</span>
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* Show transition message when analysis is complete but conversation hasn't started */}
-      {analysisComplete && !isLoading && !showMessages && !analysisError && (
-        <div className="flex flex-col items-center justify-center py-10 text-center animate-fade-in">
-          <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
-          <span className="text-lg font-medium mb-2">Analysis Complete!</span>
-          <p className="text-sm text-muted-foreground max-w-md">
-            Our AI experts are preparing their insights about this repository.
-            The conversation will begin momentarily...
-          </p>
-        </div>
-      )}
-      
-      {/* Show error state when analysis fails */}
-      {analysisError && (
-        <div className="flex flex-col items-center justify-center py-10 text-center">
-          <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-          <span className="text-lg font-medium mb-2">Analysis Failed</span>
-          <p className="text-sm text-muted-foreground max-w-md">
-            We encountered an error while analyzing the repository.
-            Please check the URL and try again.
-          </p>
-          <div className="mt-4 p-3 bg-red-500/10 rounded-md text-red-500 text-sm">
-            {analysisError}
-          </div>
-        </div>
+                
+                {/* Error state */}
+                {analysisError && (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+                    <h3 className="text-lg font-medium mb-2">Analysis Failed</h3>
+                    <p className="text-sm text-muted-foreground max-w-md">
+                      We encountered an error while analyzing the repository.
+                      Please check the URL and try again.
+                    </p>
+                    <div className="mt-4 p-3 bg-red-500/10 rounded-md text-red-500 text-sm border border-red-500/20">
+                      {analysisError}
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+              
+              <TabsContent value="messages" className="p-4 space-y-4 max-h-[500px] overflow-y-auto">
+                {showMessages && visibleIndex >= 0 && messages.slice(0, visibleIndex + 1).map((message, index) => {
+                  const agent = agentConfig[message.agent];
+
+                  return (
+                    <div
+                      key={index}
+                      className={`flex items-start space-x-4 animate-fade-in ${
+                        index === visibleIndex ? "opacity-100" : "opacity-90"
+                      }`}
+                      style={{ animationDelay: `${index * 0.2}s` }}
+                    >
+                      <Avatar className={`${agent.color} h-10 w-10 text-xl ring-2 ring-background`}>
+                        <AvatarFallback>{agent.avatar}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col space-y-1 flex-1">
+                        <span className="text-sm font-medium">{agent.name}</span>
+                        <div className="rounded-lg bg-muted/40 backdrop-blur-sm p-3 border border-border/30">
+                          {index === visibleIndex ? (
+                            <TypeWriter
+                              text={message.content}
+                              speed={40} // Slower typing speed for better readability
+                              onComplete={handleMessageComplete}
+                              className="text-sm"
+                            />
+                          ) : (
+                            <span className="text-sm">{message.content}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

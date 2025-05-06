@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as d3 from "d3";
 import { toast } from "sonner";
 import { 
@@ -13,7 +13,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RepoNode, getRepoDownloadUrl, convertRepoDataToNodes } from "@/services/githubService";
@@ -30,12 +29,9 @@ interface D3Node extends d3.SimulationNodeDatum {
   type: 'directory' | 'file';
   extension?: string;
   color: string;
-  size: number; // node size
-  depth: number; // depth in the tree
-  originalX?: number;
-  originalY?: number;
+  size: number;
+  depth: number;
   children?: D3Node[];
-  collapsed?: boolean;
   parentId?: string;
 }
 
@@ -46,23 +42,23 @@ interface D3Link {
   distance?: number;
 }
 
-// File extension colors (using ones from the existing components)
+// File extension colors with modern palette
 const FILE_EXTENSIONS_COLORS: Record<string, string> = {
-  js: "#f7df1e",
-  jsx: "#61dafb",
-  ts: "#3178c6",
-  tsx: "#61dafb",
-  css: "#264de4",
-  scss: "#cc6699",
-  html: "#e34f26",
-  json: "#5a9b44",
-  md: "#9e70b2",
-  py: "#3776ab",
-  rb: "#cc342d",
-  go: "#00add8",
-  java: "#007396",
-  php: "#777bb4",
-  default: "#94a3b8"
+  js: "#f7df1e",    // JavaScript yellow
+  jsx: "#61dafb",   // React blue
+  ts: "#3178c6",    // TypeScript blue
+  tsx: "#61dafb",   // React blue
+  css: "#264de4",   // CSS blue
+  scss: "#cc6699",  // SCSS pink
+  html: "#e34f26",  // HTML orange
+  json: "#5a9b44",  // JSON green
+  md: "#9e70b2",    // Markdown purple
+  py: "#3776ab",    // Python blue
+  rb: "#cc342d",    // Ruby red
+  go: "#00add8",    // Go blue
+  java: "#007396",  // Java blue
+  php: "#777bb4",   // PHP purple
+  default: "#94a3b8" // Default slate
 };
 
 const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
@@ -141,12 +137,12 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
     // Process each node and its children recursively
     const processNode = (node: RepoNode, depth: number = 0, parent: string | null = null): void => {
       // Calculate node size based on type and depth
-      const nodeSize = node.type === 'directory' ? 15 - (depth * 1.5) : 8 - (depth * 0.5);
+      const nodeSize = node.type === 'directory' ? 12 - (depth * 0.8) : 6 - (depth * 0.2);
       
       // Determine node color
       let nodeColor = node.type === 'directory' 
-        ? 'rgba(139, 92, 246, 0.8)' // Purple for directories
-        : 'rgba(16, 185, 129, 0.8)'; // Default file color
+        ? '#8b5cf6' // Violet for directories
+        : '#10b981'; // Emerald for files
       
       // For files, use extension-specific colors
       if (node.type === 'file' && node.path) {
@@ -164,8 +160,7 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
         extension: node.path?.split('.').pop(),
         color: nodeColor,
         size: nodeSize,
-        depth: depth,
-        collapsed: node.collapsed || false
+        depth: depth
       };
       
       // Add to nodes array
@@ -176,13 +171,13 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
         links.push({
           source: parent,
           target: node.id,
-          strength: 0.2,
-          distance: 80 + (depth * 15) // Longer distance for deeper nodes
+          strength: 0.1,
+          distance: 70 + (depth * 10) // Longer distance for deeper nodes
         });
       }
       
-      // Process children if not collapsed
-      if (node.children.length > 0 && !node.collapsed) {
+      // Process children
+      if (node.children.length > 0) {
         node.children.forEach(child => {
           processNode(child, depth + 1, node.id);
         });
@@ -207,52 +202,61 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
     const centerX = width / 2;
     const centerY = height / 2;
     
-    // Create SVG and apply initial zoom
+    // Create SVG with gradient background
     const svg = d3.select(svgRef.current)
       .attr("width", width)
       .attr("height", height)
-      .attr("viewBox", [0, 0, width, height])
-      .attr("style", "max-width: 100%; height: auto;");
+      .attr("viewBox", [0, 0, width, height]);
     
-    // Add a background gradient
+    // Add a modern background gradient
     const defs = svg.append("defs");
-    const gradient = defs.append("radialGradient")
-      .attr("id", "radial-bg")
-      .attr("cx", "50%")
-      .attr("cy", "50%")
-      .attr("r", "50%");
+    const gradient = defs.append("linearGradient")
+      .attr("id", "background-gradient")
+      .attr("x1", "0%")
+      .attr("y1", "0%")
+      .attr("x2", "100%")
+      .attr("y2", "100%");
     
     gradient.append("stop")
       .attr("offset", "0%")
-      .attr("stop-color", "rgba(30, 41, 59, 0.8)");
+      .attr("stop-color", "rgba(15, 23, 42, 0.9)"); // Dark slate blue
     
     gradient.append("stop")
       .attr("offset", "100%")
-      .attr("stop-color", "rgba(15, 23, 42, 0.9)");
-    
-    // Add subtle grid pattern
-    const pattern = defs.append("pattern")
-      .attr("id", "grid")
-      .attr("width", 50)
-      .attr("height", 50)
-      .attr("patternUnits", "userSpaceOnUse");
-    
-    pattern.append("path")
-      .attr("d", "M 50 0 L 0 0 0 50")
-      .attr("fill", "none")
-      .attr("stroke", "rgba(255, 255, 255, 0.03)")
-      .attr("stroke-width", 1);
+      .attr("stop-color", "rgba(3, 7, 18, 0.95)"); // Even darker blue
     
     // Apply background
     svg.append("rect")
       .attr("width", width)
       .attr("height", height)
-      .attr("fill", "url(#radial-bg)");
+      .attr("fill", "url(#background-gradient)");
     
-    svg.append("rect")
-      .attr("width", width)
-      .attr("height", height)
-      .attr("fill", "url(#grid)");
+    // Add subtle grid pattern
+    const gridSize = 30;
+    svg.append("g")
+      .attr("class", "grid")
+      .selectAll("line")
+      .data(d3.range(0, width, gridSize))
+      .enter()
+      .append("line")
+      .attr("x1", d => d)
+      .attr("y1", 0)
+      .attr("x2", d => d)
+      .attr("y2", height)
+      .attr("stroke", "rgba(148, 163, 184, 0.05)")
+      .attr("stroke-width", 1);
+    
+    svg.select(".grid")
+      .selectAll("line.horizontal")
+      .data(d3.range(0, height, gridSize))
+      .enter()
+      .append("line")
+      .attr("x1", 0)
+      .attr("y1", d => d)
+      .attr("x2", width)
+      .attr("y2", d => d)
+      .attr("stroke", "rgba(148, 163, 184, 0.05)")
+      .attr("stroke-width", 1);
     
     // Create zoom behavior
     const zoom = d3.zoom<SVGSVGElement, unknown>()
@@ -267,46 +271,45 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
     // Main container for all elements with initial zoom
     const g = svg.append("g");
     
-    // Create a radial force layout
+    // Create a force layout
     const simulation = d3.forceSimulation<D3Node>(nodes)
-      .force("charge", d3.forceManyBody().strength(-300))
+      .force("charge", d3.forceManyBody<D3Node>().strength(-200))
       .force("link", d3.forceLink<D3Node, D3Link>(links)
         .id(d => d.id)
-        .distance(d => d.distance || 80)
-        .strength(d => d.strength || 0.1))
+        .distance(d => d.distance || 60)
+        .strength(d => d.strength || 0.2))
       .force("center", d3.forceCenter(centerX, centerY))
       .force("collision", d3.forceCollide<D3Node>().radius(d => d.size * 1.5))
-      .force("radial", d3.forceRadial<D3Node>((d) => 100 + d.depth * 120, centerX, centerY).strength(0.8));
+      .force("x", d3.forceX(centerX).strength(0.05))
+      .force("y", d3.forceY(centerY).strength(0.05));
     
     // Store simulation for cleanup
     simulationRef.current = simulation;
     
-    // Create links with gradient effect
+    // Create links with curved paths for better visibility
     const link = g.append("g")
-      .attr("stroke", "#999")
-      .attr("stroke-opacity", 0.6)
-      .selectAll("line")
+      .attr("class", "links")
+      .selectAll("path")
       .data(links)
-      .join("line")
-      .attr("stroke-width", 1.5)
+      .join("path")
       .attr("stroke", d => {
         const sourceNode = nodes.find(n => n.id === (typeof d.source === 'string' ? d.source : d.source.id));
-        return sourceNode?.type === 'directory' ? 'rgba(139, 92, 246, 0.4)' : 'rgba(16, 185, 129, 0.4)';
+        return sourceNode?.type === 'directory' ? 'rgba(139, 92, 246, 0.2)' : 'rgba(16, 185, 129, 0.2)';
       })
-      .attr("stroke-dasharray", d => {
-        const sourceNode = nodes.find(n => n.id === (typeof d.source === 'string' ? d.source : d.source.id));
-        return sourceNode?.type === 'directory' ? "none" : "5,5";
-      });
+      .attr("stroke-width", 1.5)
+      .attr("fill", "none")
+      .attr("opacity", 0.5);
     
-    // Create node groups
+    // Create node groups with modern design
     const node = g.append("g")
+      .attr("class", "nodes")
       .selectAll(".node")
       .data(nodes)
       .join("g")
       .attr("class", "node")
       .attr("cursor", "pointer")
-      .attr("data-id", d => d.id) // For easier selection
-      .attr("data-type", d => d.type) // For styling and filtering
+      .attr("data-id", d => d.id)
+      .attr("data-type", d => d.type)
       .attr("data-extension", d => d.extension || '')
       .call(d3.drag<SVGGElement, D3Node>()
         .on("start", dragStarted)
@@ -324,15 +327,15 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
         resetHighlighting();
       });
     
-    // Add circular backgrounds with glassmorphism effect
+    // Add circular node backgrounds with glassmorphism effect
     node.append("circle")
       .attr("r", d => d.size)
       .attr("fill", d => d.color)
       .attr("fill-opacity", 0.7)
-      .attr("stroke", d => d.type === 'directory' ? '#9f7aea' : '#10b981')
+      .attr("stroke", d => d.type === 'directory' ? '#a78bfa' : '#34d399')
       .attr("stroke-width", 1.5)
       .attr("stroke-opacity", 0.8)
-      .attr("filter", "drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))");
+      .attr("filter", "drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2))");
     
     // Add file/folder icons
     node.append("text")
@@ -342,13 +345,13 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
       .attr("font-size", d => d.type === 'directory' ? "10px" : "8px")
       .text(d => d.type === 'directory' ? '📁' : getFileEmoji(d.extension || ''));
     
-    // Add text labels
+    // Add text labels with a modern style
     node.append("text")
-      .attr("dy", d => d.size + 12)
+      .attr("dy", d => d.size + 15)
       .attr("text-anchor", "middle")
       .attr("fill", "#fff")
       .attr("font-size", "8px")
-      .attr("font-weight", "bold")
+      .attr("font-weight", 500)
       .attr("pointer-events", "none")
       .attr("filter", "drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7))")
       .text(d => {
@@ -357,13 +360,25 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
         return name.length > 15 ? name.substring(0, 12) + '...' : name;
       });
     
-    // Update positions on each tick
+    // Update positions on each tick with smoother curved links
     simulation.on("tick", () => {
-      link
-        .attr("x1", d => (d.source as D3Node).x!)
-        .attr("y1", d => (d.source as D3Node).y!)
-        .attr("x2", d => (d.target as D3Node).x!)
-        .attr("y2", d => (d.target as D3Node).y!);
+      link.attr("d", d => {
+        const sourceX = (d.source as D3Node).x!;
+        const sourceY = (d.source as D3Node).y!;
+        const targetX = (d.target as D3Node).x!;
+        const targetY = (d.target as D3Node).y!;
+        
+        const dx = targetX - sourceX;
+        const dy = targetY - sourceY;
+        const dr = Math.sqrt(dx * dx + dy * dy) * 2;
+        
+        // Straight lines for closer nodes, curved for more distant
+        if (dr < 100) {
+          return `M${sourceX},${sourceY} L${targetX},${targetY}`;
+        } else {
+          return `M${sourceX},${sourceY} A${dr},${dr} 0 0,1 ${targetX},${targetY}`;
+        }
+      });
       
       node.attr("transform", d => `translate(${d.x},${d.y})`);
     });
@@ -384,10 +399,6 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
       if (!event.active) simulation.alphaTarget(0);
       d.fx = null;
       d.fy = null;
-      
-      // Store the new position
-      d.originalX = d.x;
-      d.originalY = d.y;
     }
     
     // Function to highlight connected nodes
@@ -411,53 +422,41 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
         return connected.has(sourceId) && connected.has(targetId);
       });
       
+      // Fade non-connected nodes
+      node.style("opacity", n => connected.has(n.id) ? 1 : 0.3);
+      link.style("opacity", l => {
+        const sourceId = typeof l.source === 'string' ? l.source : l.source.id;
+        const targetId = typeof l.target === 'string' ? l.target : l.target.id;
+        return (connected.has(sourceId) && connected.has(targetId)) ? 0.8 : 0.1;
+      });
+      
       setHighlightedNodes(connected);
     }
     
     // Function to reset highlighting
     function resetHighlighting() {
-      node.classed("node--highlighted", false);
-      link.classed("link--highlighted", false);
+      node.classed("node--highlighted", false).style("opacity", 1);
+      link.classed("link--highlighted", false).style("opacity", 0.5);
       setHighlightedNodes(new Set());
     }
-    
-    // Add CSS for highlighting
-    const style = document.createElement('style');
-    style.textContent = `
-      .node--highlighted circle {
-        stroke: #ff3e00;
-        stroke-width: 2.5px;
-      }
-      .link--highlighted {
-        stroke: #ff3e00 !important;
-        stroke-opacity: 1;
-        stroke-width: 2px;
-      }
-    `;
-    document.head.appendChild(style);
     
     // Auto-fit the view with animation
     svg.transition()
       .duration(750)
       .call(zoom.transform, d3.zoomIdentity);
-    
-    // Return cleanup function to remove the style
-    return () => {
-      document.head.removeChild(style);
-    };
   };
   
   // Handle zoom controls
   const handleZoomIn = () => {
     if (svgRef.current) {
-      const zoom = d3.zoom<SVGSVGElement, unknown>().scaleBy(d3.select(svgRef.current), 1.2);
+      const zoom = d3.zoom<SVGSVGElement, unknown>().scaleBy(d3.select(svgRef.current), 1.3);
       d3.select(svgRef.current).transition().duration(300).call(zoom as any);
     }
   };
   
   const handleZoomOut = () => {
     if (svgRef.current) {
-      const zoom = d3.zoom<SVGSVGElement, unknown>().scaleBy(d3.select(svgRef.current), 1 / 1.2);
+      const zoom = d3.zoom<SVGSVGElement, unknown>().scaleBy(d3.select(svgRef.current), 1 / 1.3);
       d3.select(svgRef.current).transition().duration(300).call(zoom as any);
     }
   };
@@ -526,7 +525,6 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
   // Handle window resize
   useEffect(() => {
     const handleResize = () => {
-      // Re-initialize visualization on window resize
       initializeVisualization();
     };
     
@@ -666,7 +664,7 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
         </Select>
       </div>
       
-      <div className="relative flex flex-col h-[700px] bg-background/5 backdrop-blur-sm rounded-lg border border-border/20 overflow-hidden">
+      <div className="relative flex flex-col h-[700px] bg-gradient-to-br from-slate-900/80 to-slate-950/90 backdrop-blur-sm rounded-lg border border-slate-800/30 overflow-hidden">
         <div className="absolute top-4 right-4 flex gap-2 z-10">
           <TooltipProvider>
             <Tooltip>
@@ -736,7 +734,7 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-muted-foreground">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-purple-500"></div>
+                <div className="h-3 w-3 rounded-full bg-violet-500"></div>
                 <span>Directories</span>
               </div>
               <div className="flex items-center gap-2">
@@ -763,7 +761,7 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
             <SheetHeader className="border-b border-slate-800 bg-gray-900/40 p-4">
               <SheetTitle className="flex items-center gap-2 text-white">
                 {selectedNode.type === "directory" ? (
-                  <Folder className="h-5 w-5 text-purple-400" />
+                  <Folder className="h-5 w-5 text-violet-400" />
                 ) : (
                   <FileCode className="h-5 w-5 text-emerald-400" />
                 )}

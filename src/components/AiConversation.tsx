@@ -383,7 +383,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
               const showMessagesInterval = setInterval(() => {
                 setVisibleIndex(prev => {
                   const newIndex = prev + 1;
-                  if (newIndex >= prev.length + aiMessages.length - 2) {
+                  if (newIndex >= messages.length + aiMessages.length - 2) {
                     clearInterval(showMessagesInterval);
                     
                     // Complete the final phase

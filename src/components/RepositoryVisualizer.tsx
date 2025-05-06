@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useApi } from "@/contexts/ApiContext";
 import { toast } from "sonner";
@@ -198,7 +199,7 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
       .force("link", d3.forceLink<D3Node, D3Link>(links).id(d => d.id).distance(80))
       .force("charge", d3.forceManyBody().strength(-300))
       .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide().radius(d => d.radius + 10));
+      .force("collision", d3.forceCollide<D3Node>().radius(d => d.radius + 10));
     
     const svg = d3.select(svgRef.current)
       .attr("width", width)

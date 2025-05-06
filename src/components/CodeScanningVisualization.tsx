@@ -170,30 +170,30 @@ const CodeScanningVisualization: React.FC<CodeScanningVisualizationProps> = ({
       return;
     }
 
-    // Change snippet every 8-12 seconds
+    // Change snippet every 8-12 seconds (slowed down)
     const snippetInterval = setInterval(() => {
       setCurrentSnippetIndex(prev => (prev + 1) % codeSnippets.length);
       setVisibleLines(0);
       setScrollPosition(0);
-    }, 10000);
+    }, 15000); // Increased from 10000 to 15000ms
     
-    // Reveal one line at a time
+    // Reveal one line at a time (slowed down)
     const lineInterval = setInterval(() => {
       if (visibleLines < totalLines) {
         setVisibleLines(prev => prev + 1);
       }
-    }, 100);
+    }, 150); // Increased from 100 to 150ms
     
-    // Scroll down gradually
+    // Scroll down gradually (slowed down)
     const scrollInterval = setInterval(() => {
       if (containerRef.current) {
         const maxScroll = containerRef.current.scrollHeight - containerRef.current.clientHeight;
         if (scrollPosition < maxScroll) {
-          setScrollPosition(prev => Math.min(prev + 2, maxScroll));
+          setScrollPosition(prev => Math.min(prev + 1, maxScroll)); // Reduced scroll speed
           containerRef.current.scrollTop = scrollPosition;
         }
       }
-    }, 150);
+    }, 200); // Increased from 150 to 200ms
     
     return () => {
       clearInterval(snippetInterval);
@@ -209,7 +209,7 @@ const CodeScanningVisualization: React.FC<CodeScanningVisualizationProps> = ({
   
   if (!active) {
     return (
-      <div className="rounded-md bg-background border border-border h-[200px] flex items-center justify-center">
+      <div className="rounded-md bg-background border border-border h-[300px] flex items-center justify-center">
         <p className="text-sm text-muted-foreground">Code visualization paused</p>
       </div>
     );
@@ -226,25 +226,57 @@ const CodeScanningVisualization: React.FC<CodeScanningVisualizationProps> = ({
       
       <div 
         ref={containerRef}
-        className="rounded-md border border-border overflow-hidden h-[200px] relative"
+        className="rounded-md border border-border/60 overflow-hidden h-[300px] relative bg-slate-900"
       >
-        {/* Scanning line animation */}
+        {/* Scanning animation effect */}
         <div 
-          className="absolute h-[2px] bg-primary w-full opacity-50 z-10 transition-all duration-100"
+          className="absolute h-[1px] bg-gradient-to-r from-transparent via-primary to-transparent w-full opacity-70 z-10 transition-all duration-100"
           style={{ 
             top: `${Math.min((visibleLines / totalLines) * 100, 99)}%`,
-            boxShadow: '0 0 10px 2px rgba(var(--primary), 0.3)' 
+            boxShadow: '0 0 10px 2px rgba(var(--primary), 0.4)' 
           }}
         />
+        
+        {/* Scanning pattern overlay */}
+        <div 
+          className="absolute inset-0 z-0 pointer-events-none opacity-5"
+          style={{
+            backgroundImage: 'repeating-linear-gradient(0deg, currentColor, currentColor 1px, transparent 1px, transparent 2px)',
+            backgroundSize: '100% 4px',
+            animation: 'scanlines 8s linear infinite'
+          }}
+        />
+        
+        <style jsx>{`
+          @keyframes scanlines {
+            0% { background-position: 0 0; }
+            100% { background-position: 0 100%; }
+          }
+        `}</style>
         
         <SyntaxHighlighter 
           language={currentSnippet.language}
           style={atomOneDark}
           className="h-full"
           showLineNumbers
+          wrapLines={true}
+          lineProps={(lineNumber) => ({
+            style: { 
+              display: 'block',
+              opacity: lineNumber <= visibleLines ? 1 : 0,
+              transition: 'opacity 0.3s ease',
+              animation: lineNumber === visibleLines ? 'typingCursor 0.8s step-end infinite' : 'none'
+            }
+          })}
         >
-          {getVisibleCode()}
+          {currentSnippet.code}
         </SyntaxHighlighter>
+        
+        {/* Status indicators */}
+        <div className="absolute bottom-2 right-2 flex items-center gap-2 text-xs bg-black/40 backdrop-blur-sm px-2 py-1 rounded-full">
+          <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+          <span className="text-green-300">{visibleLines}/{totalLines} lines</span>
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useApi } from "@/contexts/ApiContext";
 import TypeWriter from "./TypeWriter";
@@ -29,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import CodeScanningVisualization from "./CodeScanningVisualization";
 
 // Define proper types
 type AIAgent = "alphaCodeExpert" | "mindMapSpecialist" | "integrationExpert";
@@ -198,9 +198,10 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
   useEffect(() => {
     if (resultsReady && !isLoading) {
       console.log("Analysis is complete, calling onComplete");
+      // Increased delay to ensure everything is fully loaded and visible
       setTimeout(() => {
         onComplete();
-      }, 800); // Small delay to ensure everything is fully loaded
+      }, 2000); // Increased from 800ms to 2000ms
     }
   }, [resultsReady, onComplete, isLoading]);
   
@@ -296,6 +297,9 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       setMessages(initialMessages);
       setVisibleIndex(0);
       
+      // Slow down the initial message display
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       // Progress callback for repository data fetching
       const progressCallback: ProgressCallback = (completed: number, total: number, phase: number = 0, filePath?: string, fileType?: string) => {
         console.log(`Progress update: ${completed}/${total} (phase ${phase}) - ${filePath || 'no file'}`);
@@ -313,7 +317,8 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
           setCurrentDirectory(dirPath || 'root');
           
           // Add occasional messages about files being analyzed
-          if (completed % 5 === 0 && completed > 0) {
+          // Show more frequent updates (reduced from 5 to 3)
+          if (completed % 3 === 0 && completed > 0) {
             const extensionMatch = fileName.match(/\.([a-zA-Z0-9]+)$/);
             const extension = extensionMatch ? extensionMatch[1] : 'unknown';
             
@@ -330,7 +335,8 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         
         // Update phase progress for appropriate phase (0 = structure, 1 = code analysis)
         const phaseIndex = phase >= 0 && phase < phases.length ? phase : 0;
-        const phaseProgress = Math.min(Math.floor((completed / total) * 100), 100);
+        // Slow down progress to make it more visible (reduced from 100 to 80)
+        const phaseProgress = Math.min(Math.floor((completed / total) * 80), 80);
         updatePhaseProgress(phaseIndex, phaseProgress);
         
         // Calculate more accurate remaining time based on progress rate
@@ -375,6 +381,9 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         
         console.log(`Repository structure analyzed: ${files} files across ${directories} directories`);
         
+        // Add a delay before completing the first phase to ensure visibility
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
         // Mark phase 1 (structure) as complete
         updatePhaseStatus(0, 'completed');
         updatePhaseProgress(0, 100);
@@ -387,6 +396,9 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         
         setMessages(prev => [...prev, findingsMessage]);
         setVisibleIndex(prev => prev + 1);
+        
+        // Add a delay before starting the next phase
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         // Start phase 2 - code analysis
         updatePhaseStatus(1, 'in-progress');
@@ -401,7 +413,8 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
           // Progress callback for AI generation
           (completed, total, phase = 1) => {
             console.log(`AI generation progress: ${completed}/${total} (phase ${phase})`);
-            const aiProgress = Math.min(Math.floor((completed / total) * 100), 100);
+            // Slow down progress to make it more visible
+            const aiProgress = Math.min(Math.floor((completed / total) * 80), 80);
             updatePhaseProgress(phase, aiProgress);
           }
         );
@@ -409,9 +422,15 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         // Mark AI conversation as started to prevent duplication
         aiConversationStarted.current = true;
         
+        // Add a delay before completing the code analysis phase
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
         // Mark phase 2 (code analysis) as complete
         updatePhaseStatus(1, 'completed');
         updatePhaseProgress(1, 100);
+        
+        // Add a delay before starting the visualization phase
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Start phase 3 - visualization
         updatePhaseStatus(2, 'in-progress');
@@ -426,58 +445,84 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         setMessages(prev => [...prev, visualizationMessage]);
         setVisibleIndex(prev => prev + 1);
         
-        // Simulate visualization generation with progress updates
+        // Add a delay to allow the visualization message to be read
+        await new Promise(resolve => setTimeout(resolve, 2500));
+        
+        // Simulate visualization generation with progress updates (slowed down)
         let visualProgress = 0;
         const visualizationInterval = setInterval(() => {
-          visualProgress += 10;
+          visualProgress += 5; // Reduced from 10 to 5 for slower progress
           updatePhaseProgress(2, Math.min(visualProgress, 100));
           
           if (visualProgress >= 100) {
             clearInterval(visualizationInterval);
             
-            // Mark visualization phase as complete
-            updatePhaseStatus(2, 'completed');
-            
-            // Start final phase
-            updatePhaseStatus(3, 'in-progress');
-            setActivePhaseIndex(3);
-            
-            // Add the AI conversation messages - skip the first 2 as we're adding custom ones
-            // Start with the 3rd message from aiMessages 
-            const remainingMessages = aiMessages.slice(2);
-            
-            // Function to add messages one by one with animation
-            const addMessagesSequentially = (index = 0) => {
-              if (index < remainingMessages.length) {
-                setMessages(prev => [...prev, remainingMessages[index]]);
-                setVisibleIndex(prev => prev + 1);
-                
-                // Update progress for finalizing phase
-                const finalProgress = Math.min(
-                  Math.floor((index / remainingMessages.length) * 100), 
-                  100
-                );
-                updatePhaseProgress(3, finalProgress);
-                
-                // Schedule next message
-                setTimeout(() => addMessagesSequentially(index + 1), 1500);
-              } else {
-                // All messages added, complete the final phase
-                updatePhaseProgress(3, 100);
-                updatePhaseStatus(3, 'completed');
-                
-                // Mark analysis as complete
-                setAnalysisComplete(true);
-                setIsLoading(false);
-                setResultsReady(true);
-                console.log("Analysis complete, results ready");
-              }
-            };
-            
-            // Start adding messages
-            setTimeout(() => addMessagesSequentially(), 1000);
+            // Add a delay before completing the visualization phase
+            setTimeout(async () => {
+              // Mark visualization phase as complete
+              updatePhaseStatus(2, 'completed');
+              
+              // Add a delay before starting the final phase
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              
+              // Start final phase
+              updatePhaseStatus(3, 'in-progress');
+              setActivePhaseIndex(3);
+              
+              // Add a message about finalizing the analysis
+              const finalizingMessage: Message = {
+                agent: "integrationExpert",
+                content: `Now finalizing the analysis and preparing insights about this repository...`
+              };
+              
+              setMessages(prev => [...prev, finalizingMessage]);
+              setVisibleIndex(prev => prev + 1);
+              
+              // Add a delay before showing AI conversation messages
+              await new Promise(resolve => setTimeout(resolve, 2500));
+              
+              // Add the AI conversation messages - skip the first 2 as we're adding custom ones
+              // Start with the 3rd message from aiMessages 
+              const remainingMessages = aiMessages.slice(2);
+              
+              // Function to add messages one by one with animation
+              const addMessagesSequentially = async (index = 0) => {
+                if (index < remainingMessages.length) {
+                  setMessages(prev => [...prev, remainingMessages[index]]);
+                  setVisibleIndex(prev => prev + 1);
+                  
+                  // Update progress for finalizing phase
+                  const finalProgress = Math.min(
+                    Math.floor((index / remainingMessages.length) * 100), 
+                    100
+                  );
+                  updatePhaseProgress(3, finalProgress);
+                  
+                  // Schedule next message with a longer delay for better readability
+                  const messageDelay = 2500; // Increased from 1500ms to 2500ms
+                  await new Promise(resolve => setTimeout(resolve, messageDelay));
+                  addMessagesSequentially(index + 1);
+                } else {
+                  // All messages added, wait before completing the final phase
+                  await new Promise(resolve => setTimeout(resolve, 1500));
+                  
+                  // Complete the final phase
+                  updatePhaseProgress(3, 100);
+                  updatePhaseStatus(3, 'completed');
+                  
+                  // Mark analysis as complete
+                  setAnalysisComplete(true);
+                  setIsLoading(false);
+                  setResultsReady(true);
+                  console.log("Analysis complete, results ready");
+                }
+              };
+              
+              // Start adding messages
+              addMessagesSequentially();
+            }, 1000);
           }
-        }, 300);
+        }, 500); // Increased from 300ms to 500ms
       } catch (error) {
         console.error("Error in AI conversation:", error);
         const errorMsg = error instanceof Error ? error.message : "Unknown error occurred";
@@ -522,16 +567,18 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
   
   const handleMessageComplete = () => {
     if (visibleIndex < messages.length - 1) {
+      // Increase delay between messages for better readability
       setTimeout(() => {
         setVisibleIndex(prev => prev + 1);
-      }, 1000); // Delay between messages for better readability
+      }, 1500); // Increased from 1000ms to 1500ms
     } else {
+      // Increase delay before completing the conversation
       setTimeout(() => {
         setProgress(100); // Set to 100% when all messages are displayed
         setIsLoading(false);
         setResultsReady(true); // Only now are results truly ready to be displayed
         console.log("All messages displayed, results ready");
-      }, 800); // Delay before completing the conversation
+      }, 1500); // Increased from 800ms to 1500ms
     }
   };
 
@@ -634,6 +681,12 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
                 </div>
               )}
               
+              {/* Code visualization component */}
+              <CodeScanningVisualization 
+                active={isLoading && activePhaseIndex >= 1} 
+                phase={activePhaseIndex === 1 ? "Code Analysis" : activePhaseIndex === 2 ? "Visualization" : "Finalizing"}
+              />
+              
               {/* Current file being analyzed */}
               {currentFile && currentFileType && isLoading && (
                 <div className="bg-background/20 backdrop-blur-sm rounded-lg p-2">
@@ -722,7 +775,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
               </TabsList>
               
               <TabsContent value="messages" className="mt-0">
-                <ScrollArea className="h-[500px] px-6 py-4">
+                <ScrollArea className="h-[600px] px-6 py-4"> {/* Increased height from 500px to 600px */}
                   {showMessages && messages.map((message, index) => {
                     const agent = agentConfig[message.agent];
                     const isVisible = index <= visibleIndex;
@@ -742,86 +795,4 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
                         </Avatar>
                         <div className="flex flex-col space-y-1 flex-1">
                           <span className="text-sm font-medium">{agent.name}</span>
-                          <div className="rounded-lg bg-muted/40 backdrop-blur-sm p-3 border border-border/30 shadow-sm">
-                            {index === visibleIndex ? (
-                              <TypeWriter
-                                text={message.content}
-                                speed={30} // Slightly faster typing for better engagement
-                                onComplete={handleMessageComplete}
-                                className="text-sm"
-                                highlight={message.highlight}
-                              />
-                            ) : (
-                              <span className="text-sm">
-                                {message.highlight ? (
-                                  <>
-                                    {message.content.split(message.highlight).map((part, i, arr) => (
-                                      <React.Fragment key={i}>
-                                        {part}
-                                        {i < arr.length - 1 && (
-                                          <span className="bg-indigo-500/20 px-1 rounded text-indigo-200 font-mono">
-                                            {message.highlight}
-                                          </span>
-                                        )}
-                                      </React.Fragment>
-                                    ))}
-                                  </>
-                                ) : (
-                                  message.content
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  
-                  {messages.length === 0 && (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-                        <p className="text-muted-foreground">Initializing analysis...</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Error state */}
-                  {analysisError && (
-                    <div className="flex flex-col items-center justify-center py-8 text-center">
-                      <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-                      <h3 className="text-lg font-medium mb-2">Analysis Failed</h3>
-                      <p className="text-sm text-muted-foreground max-w-md">
-                        We encountered an error while analyzing the repository.
-                        Please check the URL and try again.
-                      </p>
-                      <div className="mt-4 p-3 bg-red-500/10 rounded-md text-red-500 text-sm border border-red-500/20">
-                        {analysisError}
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div ref={messagesEndRef} />
-                </ScrollArea>
-                
-                {analysisComplete && (
-                  <div className="p-4 border-t border-border/20 bg-muted/20 flex justify-center">
-                    <Button
-                      variant="outline"
-                      className="bg-background/40 backdrop-blur-sm"
-                      onClick={() => onComplete()}
-                    >
-                      View Analysis Results
-                    </Button>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-};
-
-export default AiConversation;
+                          <div className="rounded-lg bg-muted/40 backdrop-blur-sm p-3

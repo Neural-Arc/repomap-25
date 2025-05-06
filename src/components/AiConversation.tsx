@@ -285,12 +285,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       updatePhaseStatus(0, 'in-progress');
       
       // Add initial conversation message
-      const initialMessages: Message[] = [
-        {
-          agent: "integrationExpert",
-          content: `Starting analysis of ${repoInfo.owner}/${repoInfo.repo}. Let's see what we can discover!`
-        }
-      ];
+      const initialMessages: Message[] = [\n        {\n          agent: \"integrationExpert\",\n          content: `Starting analysis of ${repoInfo.owner}/${repoInfo.repo}. Let's see what we can discover!`\n        }\n      ];
       
       setMessages(initialMessages);
       setVisibleIndex(0);
@@ -809,4 +804,3 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
                       variant="outline"
                       className="bg-background/40 backdrop-blur-sm"
                       onClick={() => onComplete()}
-                    >

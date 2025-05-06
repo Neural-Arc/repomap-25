@@ -847,7 +847,6 @@ export default ExampleComponent;`;
         </div>
       </div>
       
-      {/* Fix line 874 - Converting JSX Element to string where needed */}
       <Tabs defaultValue="visualization" className="w-full">
         <div className="flex justify-between items-center mb-4">
           <TabsList className="bg-muted/20 backdrop-blur-sm border border-border/20 p-1">
@@ -869,4 +868,252 @@ export default ExampleComponent;`;
             <Input
               placeholder="Search files..."
               value={searchTerm}
-              onChange={(e
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-9 w-64 bg-muted/10 backdrop-blur-sm border-border/40"
+            />
+            <Select
+              value={filterType || ""}
+              onValueChange={(value) => setFilterType(value === "" ? null : value)}
+            >
+              <SelectTrigger className="w-[180px] h-9 bg-muted/10 backdrop-blur-sm border-border/40">
+                <SelectValue placeholder="Filter by type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All types</SelectItem>
+                <SelectItem value="directory">Directories</SelectItem>
+                {fileExtensions.map(ext => (
+                  <SelectItem key={ext} value={ext}>
+                    {ext.toUpperCase()} files
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        
+        <TabsContent value="visualization" className="mt-0">
+          <div className="relative flex flex-col h-[70vh] bg-muted/5 backdrop-blur-sm rounded-lg border border-border/20 overflow-hidden">
+            <div className="absolute top-4 right-4 flex gap-2 z-10">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={handleZoomIn}
+                      className="h-8 w-8 bg-background/60 backdrop-blur-md border-border/40"
+                    >
+                      <ZoomIn size={16} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Zoom In</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={handleZoomOut}
+                      className="h-8 w-8 bg-background/60 backdrop-blur-md border-border/40"
+                    >
+                      <ZoomOut size={16} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Zoom Out</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={handleResetView}
+                      className="h-8 w-8 bg-background/60 backdrop-blur-md border-border/40"
+                    >
+                      <Maximize size={16} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Reset View</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            
+            <div className="flex-grow" ref={graphContainerRef}>
+              <svg ref={svgRef} className="w-full h-full" />
+            </div>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="explorer" className="mt-0">
+          <div className="h-[70vh] bg-muted/5 backdrop-blur-sm rounded-lg border border-border/20 p-4">
+            {rootNode && (
+              <ScrollArea className="h-full pr-4">
+                {rootNode.children
+                  .sort((a, b) => {
+                    // Sort directories first, then files
+                    if (a.type === b.type) {
+                      return a.name.localeCompare(b.name);
+                    }
+                    return a.type === 'directory' ? -1 : 1;
+                  })
+                  .map(node => renderTreeNode(node))}
+              </ScrollArea>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
+      
+      <Sheet open={isDetailSheetOpen} onOpenChange={setIsDetailSheetOpen}>
+        <SheetContent className="sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              {selectedNode?.type === 'directory' ? (
+                <FolderIcon className="h-5 w-5 text-purple-400" />
+              ) : (
+                <FileIcon 
+                  className="h-5 w-5" 
+                  style={{ 
+                    color: selectedNode?.color || FILE_EXTENSIONS_COLORS.default 
+                  }}
+                />
+              )}
+              {selectedNode?.name || 'File Details'}
+              {selectedNode?.extension && (
+                <Badge variant="outline" className="ml-2 text-xs">
+                  {selectedNode.extension}
+                </Badge>
+              )}
+            </SheetTitle>
+            <SheetDescription>
+              <div className="flex items-center gap-2 text-muted-foreground mt-1">
+                <span className="flex items-center gap-1 text-xs">
+                  <Clock className="h-3 w-3" /> 
+                  Last modified: {selectedNode?.lastModified || 'Unknown'}
+                </span>
+                {selectedNode?.commitCount && (
+                  <span className="flex items-center gap-1 text-xs">
+                    <GitCommit className="h-3 w-3" /> 
+                    {selectedNode.commitCount} commits
+                  </span>
+                )}
+              </div>
+            </SheetDescription>
+          </SheetHeader>
+          
+          <div className="mt-6">
+            {selectedNode?.type === 'file' ? (
+              <div className="space-y-4">
+                <div className="flex justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileCode className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">File Content</span>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-7 px-3"
+                    onClick={() => {
+                      window.open(`${repoUrl}/blob/main/${selectedNode.path}`, '_blank');
+                    }}
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    View on GitHub
+                  </Button>
+                </div>
+                
+                {fileContentLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-4 w-5/6" />
+                    <Skeleton className="h-4 w-3/4" />
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <pre className="p-4 rounded-md bg-muted/30 text-xs font-mono overflow-x-auto">
+                      <code>{fileContent}</code>
+                    </pre>
+                  </div>
+                )}
+                
+                <div className="pt-4 border-t border-border/30">
+                  <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    Contributors
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedNode.contributors?.map((contributor, i) => (
+                      <Badge key={i} variant="outline" className="flex items-center gap-1 py-1">
+                        {contributor}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <Folder className="h-4 w-4 text-purple-400" />
+                  Directory Content
+                </h4>
+                
+                {selectedNode?.children && (
+                  <div className="space-y-1">
+                    {selectedNode.children
+                      .sort((a, b) => {
+                        // Sort directories first, then files
+                        if (a.type === b.type) {
+                          return a.name.localeCompare(b.name);
+                        }
+                        return a.type === 'directory' ? -1 : 1;
+                      })
+                      .map(child => (
+                        <div 
+                          key={child.id}
+                          className="flex items-center py-1 px-2 rounded-md hover:bg-muted/20 cursor-pointer"
+                          onClick={() => setSelectedNode(child)}
+                        >
+                          {child.type === 'directory' ? (
+                            <FolderIcon className="h-4 w-4 text-purple-400 mr-2" />
+                          ) : (
+                            <FileIcon 
+                              className="h-4 w-4 mr-2" 
+                              style={{ 
+                                color: FILE_EXTENSIONS_COLORS[child.extension as keyof typeof FILE_EXTENSIONS_COLORS] || FILE_EXTENSIONS_COLORS.default 
+                              }}
+                            />
+                          )}
+                          <span className="text-sm">{child.name}</span>
+                          
+                          {child.extension && (
+                            <Badge variant="outline" className="ml-2 text-[0.65rem] h-4">
+                              {child.extension}
+                            </Badge>
+                          )}
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+};
+
+export default RepositoryVisualizer;

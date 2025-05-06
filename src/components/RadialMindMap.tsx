@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import * as d3 from "d3";
 import { toast } from "sonner";
@@ -275,8 +274,8 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
         .distance(d => d.distance || 80)
         .strength(d => d.strength || 0.1))
       .force("center", d3.forceCenter(centerX, centerY))
-      .force("collision", d3.forceCollide().radius(d => d.size * 1.5))
-      .force("radial", d3.forceRadial((d: D3Node) => 100 + d.depth * 120, centerX, centerY).strength(0.8));
+      .force("collision", d3.forceCollide<D3Node>().radius(d => d.size * 1.5))
+      .force("radial", d3.forceRadial<D3Node>((d) => 100 + d.depth * 120, centerX, centerY).strength(0.8));
     
     // Store simulation for cleanup
     simulationRef.current = simulation;
@@ -802,46 +801,4 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
                     </h4>
                     <p className="text-sm text-muted-foreground">
                       This {selectedNode.type} is connected to {
-                        links.filter(link => {
-                          const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
-                          const targetId = typeof link.target === 'string' ? link.target : link.target.id;
-                          return sourceId === selectedNode.id || targetId === selectedNode.id;
-                        }).length
-                      } other elements.
-                    </p>
-                  </div>
-                  
-                  {selectedNode.type === 'file' && (
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium">Preview</h4>
-                      <div className="bg-muted/40 p-3 rounded-md overflow-auto max-h-48">
-                        <div className="text-xs opacity-50 italic">
-                          File preview not available in this view. Click on files in the repository explorer for content previews.
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-medium">Location in Repository</h4>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: selectedNode.color }}></div>
-                      <span>Depth Level: {selectedNode.depth}</span>
-                    </div>
-                    {selectedNode.path && (
-                      <div className="bg-muted/20 p-2 rounded text-xs font-mono overflow-x-auto">
-                        {selectedNode.path}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </ScrollArea>
-          </SheetContent>
-        </Sheet>
-      )}
-    </div>
-  );
-};
-
-export default RadialMindMap;
+                        links.

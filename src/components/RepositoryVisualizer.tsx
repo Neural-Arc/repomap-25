@@ -143,7 +143,18 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
           return;
         }
         
-        const data = await fetchRepositoryData(repoUrl, gitHubApiKey);
+        // Add progress tracking
+        const progressCallback = (completed: number, total: number, phase: number) => {
+          // Update loading progress
+          if (completed === total) {
+            // Add a small delay before completing to ensure smooth transition
+            setTimeout(() => {
+              setLoading(false);
+            }, 500);
+          }
+        };
+        
+        const data = await fetchRepositoryData(repoUrl, gitHubApiKey, progressCallback);
         
         if (!data) {
           setError("Failed to fetch repository data");
@@ -162,10 +173,15 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
         
         // Initialize force-directed graph
         if (selectedView === 'graph') {
-          initializeGraph(nodes, links);
+          // Add a small delay to ensure the container is ready
+          setTimeout(() => {
+            initializeGraph(nodes, links);
+            // Ensure loading is complete after graph initialization
+            setLoading(false);
+          }, 100);
+        } else {
+          setLoading(false);
         }
-        
-        setLoading(false);
       } catch (error) {
         console.error("Error fetching repository:", error);
         setError("An error occurred while fetching the repository");
@@ -193,22 +209,24 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
     const width = graphContainerRef.current.clientWidth;
     const height = graphContainerRef.current.clientHeight || 600;
     
-    // Create force simulation
+    // Create SVG with explicit dimensions and viewBox
+    const svg = d3.select(svgRef.current)
+      .attr("width", "100%")
+      .attr("height", "100%")
+      .attr("viewBox", [0, 0, width, height])
+      .attr("preserveAspectRatio", "xMidYMid meet")
+      .style("background", "transparent");
+    
+    // Create force simulation with adjusted parameters
     const sim = d3.forceSimulation<D3Node>(nodes)
-      .force("link", d3.forceLink<D3Node, D3Link>(links).id(d => d.id).distance(80))
+      .force("link", d3.forceLink<D3Node, D3Link>(links).id(d => d.id).distance(150))
       .force("charge", d3.forceManyBody().strength(-300))
       .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide<D3Node>().radius(d => d.radius + 10));
-    
-    const svg = d3.select(svgRef.current)
-      .attr("width", width)
-      .attr("height", height)
-      .attr("viewBox", [0, 0, width, height])
-      .attr("style", "max-width: 100%; height: auto;");
+      .force("collision", d3.forceCollide<D3Node>().radius(d => d.radius + 30));
     
     // Add zoom behavior
     const zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.1, 3])
+      .scaleExtent([0.1, 4])
       .on("zoom", (event) => {
         g.attr("transform", event.transform);
         setZoomLevel(event.transform.k);
@@ -216,34 +234,23 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
     
     svg.call(zoomBehavior);
     
+    // Create main group for all elements
     const g = svg.append("g");
     
-    // Create links
+    // Create links with improved visibility
     const link = g.append("g")
-      .attr("stroke", "#999")
-      .attr("stroke-opacity", 0.6)
+      .attr("class", "links")
       .selectAll("line")
       .data(links)
       .join("line")
-      .attr("stroke-width", d => Math.sqrt(d.value) * 1.5)
-      .attr("stroke-dasharray", "5,5")
-      .attr("marker-end", "url(#arrow)");
+      .attr("stroke", "#999")
+      .attr("stroke-opacity", 0.6)
+      .attr("stroke-width", d => Math.sqrt(d.value) * 2)
+      .attr("stroke-dasharray", "5,5");
     
-    // Define arrow marker for links
-    svg.append("defs").append("marker")
-      .attr("id", "arrow")
-      .attr("viewBox", "0 -5 10 10")
-      .attr("refX", 15)
-      .attr("refY", 0)
-      .attr("markerWidth", 6)
-      .attr("markerHeight", 6)
-      .attr("orient", "auto")
-      .append("path")
-      .attr("fill", "#999")
-      .attr("d", "M0,-5L10,0L0,5");
-    
-    // Create node groups
+    // Create node groups with improved visibility
     const node = g.append("g")
+      .attr("class", "nodes")
       .selectAll(".node")
       .data(nodes)
       .join("g")
@@ -254,7 +261,6 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
         .on("drag", dragged)
         .on("end", dragended) as any)
       .on("click", (event, d) => {
-        // Find the corresponding tree node
         const treeNode = findNodeById(rootNode, d.id);
         if (treeNode) {
           setSelectedNode(treeNode);
@@ -262,7 +268,6 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
         }
       })
       .on("mouseover", (event, d) => {
-        // Highlight connected nodes
         const connected = new Set<string>([d.id]);
         links.forEach(link => {
           const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
@@ -274,7 +279,6 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
         
         setHighlightedNodes(connected);
         
-        // Apply visual effects
         node.classed("node--highlighted", nd => connected.has(nd.id));
         link.classed("link--highlighted", l => {
           const sourceId = typeof l.source === 'string' ? l.source : l.source.id;
@@ -288,13 +292,13 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
         link.classed("link--highlighted", false);
       });
     
-    // Add circles to nodes
+    // Add circles to nodes with improved visibility
     node.append("circle")
       .attr("r", d => d.radius)
       .attr("fill", d => d.color)
       .attr("stroke", "#fff")
-      .attr("stroke-width", 1.5)
-      .attr("filter", "drop-shadow(0 2px 3px rgba(0, 0, 0, 0.2))");
+      .attr("stroke-width", 2)
+      .attr("filter", "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))");
     
     // Add icons to nodes
     node.append("text")
@@ -302,16 +306,16 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
       .attr("text-anchor", "middle")
       .attr("fill", "#fff")
       .attr("font-family", "sans-serif")
-      .attr("font-size", "10px")
+      .attr("font-size", "12px")
       .text(d => d.type === 'directory' ? "📁" : getFileIcon(d.extension || ""));
     
-    // Add labels to nodes
+    // Add labels to nodes with improved visibility
     node.append("text")
       .attr("dy", 30)
       .attr("text-anchor", "middle")
       .attr("fill", "#fff")
       .attr("font-family", "sans-serif")
-      .attr("font-size", "10px")
+      .attr("font-size", "12px")
       .attr("font-weight", "bold")
       .text(d => {
         const name = d.name;
@@ -319,6 +323,7 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
       })
       .attr("filter", "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7))");
     
+    // Update positions on each tick
     sim.on("tick", () => {
       link
         .attr("x1", d => (d.source as D3Node).x!)
@@ -329,41 +334,19 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
       node.attr("transform", d => `translate(${d.x},${d.y})`);
     });
     
-    function dragstarted(event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) {
-      if (!event.active) sim.alphaTarget(0.3).restart();
-      d.fx = d.x;
-      d.fy = d.y;
-    }
-    
-    function dragged(event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) {
-      d.fx = event.x;
-      d.fy = event.y;
-    }
-    
-    function dragended(event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) {
-      if (!event.active) sim.alphaTarget(0);
-      d.fx = null;
-      d.fy = null;
-    }
-    
     setSimulation(sim);
     
-    // Apply CSS for highlighted nodes and links
-    const style = document.createElement('style');
-    style.textContent = `
-      .node--highlighted circle {
-        stroke: #ff3e00;
-        stroke-width: 2.5px;
-      }
-      .link--highlighted {
-        stroke: #ff3e00;
-        stroke-opacity: 1;
-      }
-    `;
-    document.head.appendChild(style);
+    // Initial zoom to fit
+    const initialTransform = d3.zoomIdentity
+      .translate(width / 2, height / 2)
+      .scale(0.8);
+    
+    svg.call(zoomBehavior.transform as any, initialTransform);
     
     return () => {
-      document.head.removeChild(style);
+      if (sim) {
+        sim.stop();
+      }
     };
   }, [rootNode]);
   
@@ -540,15 +523,35 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
   // Handle zoom controls
   const handleZoomIn = () => {
     if (svgRef.current && zoomLevel < 3) {
-      const zoom = d3.zoom<SVGSVGElement, unknown>().scaleBy(d3.select(svgRef.current), 1.2);
-      d3.select(svgRef.current).transition().duration(300).call(zoom as any);
+      const svg = d3.select(svgRef.current);
+      svg.transition().duration(300)
+        .call(d3.zoom().scaleBy, 1.2);
     }
   };
   
+  // Add drag event handlers
+  const dragstarted = (event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) => {
+    if (!event.active && simulation) simulation.alphaTarget(0.3).restart();
+    d.fx = d.x;
+    d.fy = d.y;
+  };
+
+  const dragged = (event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) => {
+    d.fx = event.x;
+    d.fy = event.y;
+  };
+
+  const dragended = (event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) => {
+    if (!event.active && simulation) simulation.alphaTarget(0);
+    d.fx = null;
+    d.fy = null;
+  };
+
   const handleZoomOut = () => {
     if (svgRef.current && zoomLevel > 0.2) {
-      const zoom = d3.zoom<SVGSVGElement, unknown>().scaleBy(d3.select(svgRef.current), 1 / 1.2);
-      d3.select(svgRef.current).transition().duration(300).call(zoom as any);
+      const svg = d3.select(svgRef.current);
+      svg.transition().duration(300)
+        .call(d3.zoom().scaleBy, 1 / 1.2);
     }
   };
   
@@ -556,13 +559,10 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
     if (svgRef.current && graphContainerRef.current) {
       const width = graphContainerRef.current.clientWidth;
       const height = graphContainerRef.current.clientHeight || 600;
-      
-      const zoom = d3.zoom<SVGSVGElement, unknown>().transform(
-        d3.select(svgRef.current),
-        d3.zoomIdentity.translate(width / 2, height / 2).scale(1)
-      );
-      
-      d3.select(svgRef.current).transition().duration(500).call(zoom as any);
+      const svg = d3.select(svgRef.current);
+      const transform = d3.zoomIdentity.translate(width / 2, height / 2).scale(1);
+      svg.transition().duration(500)
+        .call(d3.zoom().transform, transform);
     }
   };
   
@@ -589,14 +589,19 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
     return iconMap[extension] || iconMap.default;
   };
   
-  // Mock function to fetch file content
+  // Mock function to fetch file content with progress
   const fetchFileContent = async (path: string) => {
     setFileContentLoading(true);
     
-    // In a real implementation, this would fetch from GitHub API
-    // For demo, we're using mock data
-    setTimeout(() => {
-      const mockContent = `// File: ${path}
+    // Simulate progress for file content loading
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress += 20;
+      if (progress >= 100) {
+        clearInterval(progressInterval);
+        // Add a small delay before completing
+        setTimeout(() => {
+          const mockContent = `// File: ${path}
 import React from 'react';
 
 /**
@@ -613,10 +618,12 @@ function ExampleComponent() {
 }
 
 export default ExampleComponent;`;
-      
-      setFileContent(mockContent);
-      setFileContentLoading(false);
-    }, 800);
+          
+          setFileContent(mockContent);
+          setFileContentLoading(false);
+        }, 200);
+      }
+    }, 200);
   };
   
   // When a node is selected, fetch its content
@@ -694,7 +701,7 @@ export default ExampleComponent;`;
           disabled={!isDirectory || !hasChildren}
         >
           <div 
-            className={`flex items-center py-1 px-2 rounded-md cursor-pointer hover:bg-muted/50 ${
+            className={`flex items-center py-1 px-2 rounded-md cursor-pointer border hover:bg-muted/50 ${
               selectedNode?.id === node.id ? 'bg-muted/70' : ''
             }`}
             style={{ marginLeft: `${depth * 16}px` }}
@@ -892,7 +899,7 @@ export default ExampleComponent;`;
         </div>
         
         <TabsContent value="visualization" className="mt-0">
-          <div className="relative flex flex-col h-[70vh] bg-muted/5 backdrop-blur-sm rounded-lg border border-border/20 overflow-hidden">
+          <div className="relative flex flex-col h-[70vh] bg-muted/5 backdrop-blur-sm rounded-lg border border-white/70 overflow-hidden">
             <div className="absolute top-4 right-4 flex gap-2 z-10">
               <TooltipProvider>
                 <Tooltip>

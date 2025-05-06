@@ -33,12 +33,14 @@ export const generateAIConversation = async (
   
   try {
     console.log("Starting AI conversation generation");
+    updateProgress(10, 1); // Start at 10%
+    
     // Use environment variable API key if available, or fall back to provided key
     const geminiApiKey = apiKey || import.meta.env.VITE_GEMINI_API_KEY || null;
     
     // If we have a Gemini API key, use it to generate the conversation
     if (geminiApiKey) {
-      updateProgress(20, 1); // Start progress at 20% for phase 1
+      updateProgress(30, 1); // Update to 30%
       
       // Prepare repository data for the Gemini API
       const repoSummary = {
@@ -52,28 +54,29 @@ export const generateAIConversation = async (
         directoryStructure: getDirectoryStructureSummary(repoData),
       };
       
-      updateProgress(40, 1); // Update progress to 40%
+      updateProgress(50, 1); // Update to 50%
       console.log("Calling Gemini API");
       
       // Call Gemini API with the environment variable or provided key
       const response = await callGeminiAPI(geminiApiKey, repoSummary);
-      updateProgress(80, 1); // Update progress to 80%
+      updateProgress(80, 1); // Update to 80%
       console.log("Gemini API response received");
       
       // Parse the response or use fallback if needed
       const messages = parseGeminiResponse(response, repoSummary);
       
-      // Complete analysis
+      // Ensure we complete the progress
+      await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for smooth transition
       updateProgress(100, 1); // Complete progress
       console.log("AI conversation generation complete");
       return messages;
     } else {
       // No API key provided, generate mock conversation
-      updateProgress(30, 1); // Start at 30% for mock data
+      updateProgress(30, 1); // Start at 30%
       console.log("No API key provided, using mock data");
       
       // Simulate API delay for more natural experience
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 800));
       updateProgress(60, 1); // Update to 60%
       
       // Get mock data
@@ -81,6 +84,10 @@ export const generateAIConversation = async (
       
       // Simulate more processing
       await new Promise(resolve => setTimeout(resolve, 800));
+      updateProgress(90, 1); // Update to 90%
+      
+      // Final delay to ensure smooth completion
+      await new Promise(resolve => setTimeout(resolve, 500));
       updateProgress(100, 1); // Complete progress
       console.log("Mock AI conversation generation complete");
       return mockMessages;
@@ -92,10 +99,16 @@ export const generateAIConversation = async (
     
     // Small delay before returning mock data to prevent jarring UI transition
     await new Promise(resolve => setTimeout(resolve, 800));
+    updateProgress(80, 1); // Update to 80%
+    
+    const mockMessages = generateEnhancedMockConversation(repoData);
+    
+    // Final delay to ensure smooth completion
+    await new Promise(resolve => setTimeout(resolve, 500));
     updateProgress(100, 1); // Complete progress
     console.log("Error in AI generation, falling back to mock data");
     
-    return generateEnhancedMockConversation(repoData);
+    return mockMessages;
   }
 };
 
@@ -103,7 +116,7 @@ export const generateAIConversation = async (
  * Call the Gemini API with repository data
  */
 const callGeminiAPI = async (apiKey: string, repoSummary: any): Promise<any> => {
-  const endpoint = "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent";
+  const endpoint = "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent";
   
   try {
     const response = await fetch(`${endpoint}?key=${apiKey}`, {
@@ -249,7 +262,7 @@ const getDirectoryStructureSummary = (repoData: RepoData): string => {
  * Generate enhanced mock conversation with more detailed analysis
  */
 const generateEnhancedMockConversation = (repoData: RepoData | any): AIMessage[] => {
-  // Extract repo name and other details from either RepoData or summary object
+  // Extract repository information from the actual data
   const repoName = repoData.repo?.name || repoData.name || "repository";
   const repoOwner = repoData.repo?.full_name?.split('/')[0] || repoData.owner || "user";
   const fileCount = typeof repoData.stats?.totalFiles === 'number' ? repoData.stats.totalFiles : 
@@ -262,10 +275,27 @@ const generateEnhancedMockConversation = (repoData: RepoData | any): AIMessage[]
   const language = repoData.repo?.language || repoData.topLanguage || "not specified";
   const description = repoData.repo?.description || "No description available";
   
-  // Count directories
+  // Analyze actual repository structure
   const dirCount = Object.keys(repoData.files || {}).length;
   
-  // Check for common files
+  // Analyze actual files and their types
+  const fileTypes = new Map<string, number>();
+  const directories = new Set<string>();
+  
+  Object.entries(repoData.files || {}).forEach(([dirPath, files]: [string, any]) => {
+    if (dirPath) directories.add(dirPath);
+    
+    if (Array.isArray(files)) {
+      files.forEach((file: any) => {
+        if (file.type === 'file') {
+          const ext = file.path.split('.').pop()?.toLowerCase() || 'unknown';
+          fileTypes.set(ext, (fileTypes.get(ext) || 0) + 1);
+        }
+      });
+    }
+  });
+  
+  // Check for important files
   const hasReadme = Object.values(repoData.files || {}).some((files: any) => 
     Array.isArray(files) && files.some((f: any) => f.path.toLowerCase().includes('readme'))
   );
@@ -274,27 +304,50 @@ const generateEnhancedMockConversation = (repoData: RepoData | any): AIMessage[]
     Array.isArray(files) && files.some((f: any) => f.path.toLowerCase().includes('test') || f.path.toLowerCase().includes('spec'))
   );
   
-  // Return a more structured conversation with proper agent types
+  const hasConfig = Object.values(repoData.files || {}).some((files: any) => 
+    Array.isArray(files) && files.some((f: any) => f.path.toLowerCase().includes('config') || f.path.toLowerCase().includes('package.json'))
+  );
+  
+  // Analyze directory structure
+  const topLevelDirs = Array.from(directories)
+    .filter(dir => !dir.includes('/'))
+    .map(dir => dir.split('/')[0]);
+  
+  // Generate insights based on actual data
+  const structureInsights = [];
+  if (topLevelDirs.length > 0) {
+    structureInsights.push(`The project follows a ${topLevelDirs.length > 3 ? 'well-organized' : 'simple'} directory structure with ${topLevelDirs.join(', ')} as main directories.`);
+  }
+  
+  if (fileTypes.size > 0) {
+    const mainFileTypes = Array.from(fileTypes.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([ext, count]) => `${count} ${ext.toUpperCase()} files`);
+    structureInsights.push(`The codebase primarily consists of ${mainFileTypes.join(', ')}.`);
+  }
+  
+  // Return a conversation based on actual repository analysis
   return [
     {
       agent: "integrationExpert",
-      content: `I've completed my analysis of the ${repoOwner}/${repoName} repository. This ${language} project contains ${fileCount} files across ${dirCount} directories, with ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'}. The repository ${description !== "No description available" ? `is described as: "${description}"` : "doesn't have a description"}.`
+      content: `I've analyzed the ${repoOwner}/${repoName} repository. This is a ${language} project with ${fileCount} files organized across ${dirCount} directories. ${description !== "No description available" ? `The repository is described as: "${description}"` : "The repository doesn't have a description."}`
     },
     {
       agent: "alphaCodeExpert",
-      content: `Looking at the code structure, I notice ${hasReadme ? "a README file which provides documentation" : "no README file, which would help with documentation"}. ${hasTests ? "I found test files, which is good for code quality." : "I didn't find any test files, which might indicate limited testing practices."} The primary language is ${language}, and the codebase appears to be ${fileCount > 50 ? "moderately complex" : "relatively simple"} based on file count. ${fileCount > 100 ? "Given the large number of files, I'd recommend reviewing the code organization for potential refactoring opportunities." : ""}`
+      content: `Looking at the codebase structure, I notice ${hasReadme ? "a README file providing documentation" : "no README file, which would help with documentation"}. ${hasTests ? "There are test files present, indicating good testing practices." : "I don't see any test files, which might indicate limited testing coverage."} ${hasConfig ? "The project has configuration files set up." : "The project might benefit from additional configuration files."} ${structureInsights.join(' ')}`
     },
     {
       agent: "mindMapSpecialist",
-      content: `I've created a visual mind map of the repository structure that you can explore. The visualization shows the file hierarchy, directory organization, and key components. ${dirCount > 5 ? `I've noticed that the repository has ${dirCount} directories, which provides good separation of concerns.` : "The directory structure is relatively flat, which might make navigation easier but could potentially limit organization as the project grows."} You can click on any node in the mind map to see more details about each file or directory.`
+      content: `I've created a visual representation of the repository structure. The visualization shows ${dirCount} directories and ${fileCount} files, with a clear hierarchy. ${topLevelDirs.length > 0 ? `The main directories (${topLevelDirs.join(', ')}) are well-organized.` : "The directory structure is relatively flat."} You can explore the relationships between different components through the interactive visualization.`
     },
     {
       agent: "alphaCodeExpert",
-      content: `Based on the file extensions, I can see that this is ${language === "JavaScript" || language === "TypeScript" ? "a web application project" : language === "Python" ? "a Python-based project, likely for data science or backend services" : `a project primarily using ${language}`}. ${hasTests ? "The presence of tests indicates a focus on code quality and reliability." : "Adding tests would improve the code reliability."} I recommend exploring the documentation tab for more detailed information on the repository structure and component relationships.`
+      content: `Based on the file analysis, this appears to be ${language === "JavaScript" || language === "TypeScript" ? "a web application project" : language === "Python" ? "a Python-based project, likely for data science or backend services" : `a project primarily using ${language}`}. ${fileTypes.size > 0 ? `The codebase includes ${Array.from(fileTypes.entries()).map(([ext, count]) => `${count} ${ext.toUpperCase()} files`).join(', ')}.` : ""} ${hasTests ? "The presence of tests indicates a focus on code quality." : "Adding tests would improve code reliability."}`
     },
     {
       agent: "integrationExpert",
-      content: `To summarize our findings: this is a ${fileCount > 50 ? "medium-sized" : "small"} ${language} repository with ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'} and ${fileCount} files organized across ${dirCount} directories. ${hasReadme ? "It has documentation in the form of a README file." : "It would benefit from better documentation."} ${hasTests ? "It includes tests, which is a good practice." : "It lacks tests, which would improve code quality."} You can now browse the detailed mind map or view the documentation tab for more insights about the repository structure.`
+      content: `To summarize our findings: this is a ${fileCount > 50 ? "medium-sized" : "small"} ${language} repository with ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'}. ${hasReadme ? "It has documentation in the form of a README file." : "It would benefit from better documentation."} ${hasTests ? "It includes tests, which is a good practice." : "It lacks tests, which would improve code quality."} The project structure ${topLevelDirs.length > 0 ? `is organized into ${topLevelDirs.length} main directories` : "is relatively flat"}. You can explore the detailed visualization to understand the relationships between different components.`
     }
   ];
 };

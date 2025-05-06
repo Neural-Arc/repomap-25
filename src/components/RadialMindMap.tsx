@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as d3 from "d3";
 import { toast } from "sonner";
@@ -449,15 +448,17 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
   // Handle zoom controls
   const handleZoomIn = () => {
     if (svgRef.current) {
-      const zoom = d3.zoom<SVGSVGElement, unknown>().scaleBy(d3.select(svgRef.current), 1.3);
-      d3.select(svgRef.current).transition().duration(300).call(zoom as any);
+      const svg = d3.select(svgRef.current);
+      svg.transition().duration(300)
+        .call(d3.zoom().scaleBy, 1.3);
     }
   };
   
   const handleZoomOut = () => {
     if (svgRef.current) {
-      const zoom = d3.zoom<SVGSVGElement, unknown>().scaleBy(d3.select(svgRef.current), 1 / 1.3);
-      d3.select(svgRef.current).transition().duration(300).call(zoom as any);
+      const svg = d3.select(svgRef.current);
+      svg.transition().duration(300)
+        .call(d3.zoom().scaleBy, 1 / 1.3);
     }
   };
   
@@ -664,7 +665,7 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
         </Select>
       </div>
       
-      <div className="relative flex flex-col h-[700px] bg-gradient-to-br from-slate-900/80 to-slate-950/90 backdrop-blur-sm rounded-lg border border-slate-800/30 overflow-hidden">
+      <div className="relative flex flex-col h-[700px] bg-background rounded-lg border-2 border-indigo-500 overflow-hidden">
         <div className="absolute top-4 right-4 flex gap-2 z-10">
           <TooltipProvider>
             <Tooltip>

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 
 interface TypeWriterProps {
@@ -41,7 +40,7 @@ const TypeWriter: React.FC<TypeWriterProps> = ({
     return (
       <div className={className}>
         {displayText.split(highlight).map((part, i, arr) => (
-          <React.Fragment key={i}>
+          <React.Fragment key={`part-${i}`}>
             {part}
             {i < arr.length - 1 && (
               <span className="bg-indigo-500/20 px-1 rounded text-indigo-200 font-mono">

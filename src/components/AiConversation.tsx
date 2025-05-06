@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useApi } from "@/contexts/ApiContext";
 import TypeWriter from "./TypeWriter";
@@ -216,7 +215,9 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       const updatedPhases = [...prevPhases];
       updatedPhases[phaseIndex] = {
         ...updatedPhases[phaseIndex],
-        status
+        status,
+        // Ensure progress is 100% when completed
+        progress: status === 'completed' ? 100 : updatedPhases[phaseIndex].progress
       };
       
       return updatedPhases;
@@ -232,10 +233,16 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     setPhases(prevPhases => {
       const updatedPhases = [...prevPhases];
       const currentProgress = updatedPhases[phaseIndex].progress;
+      const newProgress = typeof progress === 'function' ? progress(currentProgress) : progress;
+      
+      // Ensure progress doesn't exceed 100%
+      const finalProgress = Math.min(100, newProgress);
       
       updatedPhases[phaseIndex] = {
         ...updatedPhases[phaseIndex],
-        progress: typeof progress === 'function' ? progress(currentProgress) : progress
+        progress: finalProgress,
+        // Update status to completed if progress reaches 100%
+        status: finalProgress === 100 ? 'completed' : updatedPhases[phaseIndex].status
       };
       
       // Update phase detail based on the current file/directory
@@ -594,13 +601,31 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
   const getStatusIndicator = (status: 'pending' | 'in-progress' | 'completed') => {
     switch (status) {
       case 'completed':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <CheckCircle className="h-4 w-4 text-green-500 animate-fade-in" />;
       case 'in-progress':
         return <Loader className="h-4 w-4 text-indigo-500 animate-spin" />;
       default:
         return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
   };
+
+  // Add CSS for fade-in animation
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .animate-fade-in {
+        animation: fadeIn 0.5s ease-in-out;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   return (
     <div className="flex flex-col space-y-6 h-full">
@@ -738,7 +763,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
                             <div 
                               className={`h-full rounded-full transition-all duration-300 ${
                                 phase.status === 'completed' 
-                                  ? 'bg-green-500' 
+                                  ? 'bg-green-500 animate-fade-in' 
                                   : phase.status === 'in-progress' 
                                     ? 'bg-gradient-to-r from-indigo-500 to-purple-500 animate-pulse' 
                                     : 'bg-muted'
@@ -800,7 +825,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
                             {index === visibleIndex ? (
                               <TypeWriter
                                 text={message.content}
-                                speed={30} // Slightly faster typing for better engagement
+                                speed={30}
                                 onComplete={handleMessageComplete}
                                 className="text-sm"
                                 highlight={message.highlight}
@@ -808,18 +833,18 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
                             ) : (
                               <span className="text-sm">
                                 {message.highlight ? (
-                                  <>
+                                  <div className="inline">
                                     {message.content.split(message.highlight).map((part, i, arr) => (
-                                      <React.Fragment key={i}>
+                                      <div key={`part-${i}`} className="inline">
                                         {part}
                                         {i < arr.length - 1 && (
                                           <span className="bg-indigo-500/20 px-1 rounded text-indigo-200 font-mono">
                                             {message.highlight}
                                           </span>
                                         )}
-                                      </React.Fragment>
+                                      </div>
                                     ))}
-                                  </>
+                                  </div>
                                 ) : (
                                   message.content
                                 )}

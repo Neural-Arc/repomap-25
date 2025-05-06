@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -157,6 +156,7 @@ const CodeScanningVisualization: React.FC<CodeScanningVisualizationProps> = ({
   const [currentSnippetIndex, setCurrentSnippetIndex] = useState(0);
   const [visibleLines, setVisibleLines] = useState(0);
   const [scrollPosition, setScrollPosition] = useState(0);
+  const [phaseProgress, setPhaseProgress] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   
   const currentSnippet = codeSnippets[currentSnippetIndex];
@@ -167,20 +167,26 @@ const CodeScanningVisualization: React.FC<CodeScanningVisualizationProps> = ({
       // Reset state when not active
       setVisibleLines(0);
       setScrollPosition(0);
+      setPhaseProgress(0);
       return;
     }
 
     // Change snippet every 8-12 seconds (slowed down)
     const snippetInterval = setInterval(() => {
-      setCurrentSnippetIndex(prev => (prev + 1) % codeSnippets.length);
-      setVisibleLines(0);
-      setScrollPosition(0);
+      if (phaseProgress >= 100) {
+        setCurrentSnippetIndex(prev => (prev + 1) % codeSnippets.length);
+        setVisibleLines(0);
+        setScrollPosition(0);
+        setPhaseProgress(0);
+      }
     }, 15000); // Increased from 10000 to 15000ms
     
     // Reveal one line at a time (slowed down)
     const lineInterval = setInterval(() => {
       if (visibleLines < totalLines) {
         setVisibleLines(prev => prev + 1);
+        // Update phase progress based on visible lines
+        setPhaseProgress(Math.min(100, (visibleLines / totalLines) * 100));
       }
     }, 150); // Increased from 100 to 150ms
     
@@ -200,7 +206,7 @@ const CodeScanningVisualization: React.FC<CodeScanningVisualizationProps> = ({
       clearInterval(lineInterval);
       clearInterval(scrollInterval);
     };
-  }, [active, currentSnippetIndex, visibleLines, totalLines, scrollPosition]);
+  }, [active, currentSnippetIndex, visibleLines, totalLines, scrollPosition, phaseProgress]);
   
   const getVisibleCode = () => {
     const lines = currentSnippet.code.split('\n');
@@ -220,13 +226,13 @@ const CodeScanningVisualization: React.FC<CodeScanningVisualizationProps> = ({
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">Scanning Repository Code</h3>
         <span className="bg-blue-500/10 text-blue-500 text-xs px-2 py-0.5 rounded-full">
-          {phase}
+          {phase} ({Math.round(phaseProgress)}%)
         </span>
       </div>
       
       <div 
         ref={containerRef}
-        className="rounded-md border border-border/60 overflow-hidden h-[300px] relative bg-slate-900"
+        className="rounded-md border-2 border-indigo-500 overflow-hidden h-[300px] relative bg-background shadow-lg"
       >
         {/* Scanning animation effect */}
         <div 
@@ -276,7 +282,7 @@ const CodeScanningVisualization: React.FC<CodeScanningVisualizationProps> = ({
         </SyntaxHighlighter>
         
         {/* Status indicators */}
-        <div className="absolute bottom-2 right-2 flex items-center gap-2 text-xs bg-black/40 backdrop-blur-sm px-2 py-1 rounded-full">
+        <div className="absolute bottom-2 right-2 flex items-center gap-2 text-xs bg-black/40 backdrop-blur-sm px-2 py-1 rounded-full border border-indigo-500/20">
           <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
           <span className="text-green-300">{visibleLines}/{totalLines} lines</span>
         </div>

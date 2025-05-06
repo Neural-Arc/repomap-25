@@ -247,12 +247,15 @@ const CodeScanningVisualization: React.FC<CodeScanningVisualizationProps> = ({
           }}
         />
         
-        <style jsx>{`
-          @keyframes scanlines {
-            0% { background-position: 0 0; }
-            100% { background-position: 0 100%; }
-          }
-        `}</style>
+        {/* Fix: Remove the jsx attribute from the style tag */}
+        <style>
+          {`
+            @keyframes scanlines {
+              0% { background-position: 0 0; }
+              100% { background-position: 0 100%; }
+            }
+          `}
+        </style>
         
         <SyntaxHighlighter 
           language={currentSnippet.language}

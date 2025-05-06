@@ -775,7 +775,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
               </TabsList>
               
               <TabsContent value="messages" className="mt-0">
-                <ScrollArea className="h-[600px] px-6 py-4"> {/* Increased height from 500px to 600px */}
+                <ScrollArea className="h-[600px] px-6 py-4">
                   {showMessages && messages.map((message, index) => {
                     const agent = agentConfig[message.agent];
                     const isVisible = index <= visibleIndex;
@@ -795,4 +795,5 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
                         </Avatar>
                         <div className="flex flex-col space-y-1 flex-1">
                           <span className="text-sm font-medium">{agent.name}</span>
-                          <div className="rounded-lg bg-muted/40 backdrop-blur-sm p-3
+                          <div className="rounded-lg bg-muted/40 backdrop-blur-sm p-3 border border-border/30 shadow-sm">
+                            {index ===

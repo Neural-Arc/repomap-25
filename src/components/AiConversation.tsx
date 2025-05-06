@@ -5,16 +5,32 @@ import TypeWriter from "./TypeWriter";
 import { parseGitHubUrl, fetchRepositoryData, RepoData } from "@/services/githubService";
 import { generateAIConversation } from "@/services/aiService";
 import { toast } from "sonner";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle, CheckCircle, Clock, Loader } from "lucide-react";
+import { 
+  AlertCircle, 
+  CheckCircle, 
+  Clock, 
+  Loader, 
+  ChevronRight,
+  FileIcon,
+  Code,
+  Folder,
+  GitBranch,
+  Archive,
+  X,
+  Braces
+} from "lucide-react";
 import { 
   Tabs, 
   TabsContent, 
   TabsList, 
   TabsTrigger 
 } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Define proper types
 type AIAgent = "alphaCodeExpert" | "mindMapSpecialist" | "integrationExpert";
@@ -22,6 +38,7 @@ type AIAgent = "alphaCodeExpert" | "mindMapSpecialist" | "integrationExpert";
 interface Message {
   agent: AIAgent;
   content: string;
+  highlight?: string; // Optional highlighted text (e.g., file name being analyzed)
 }
 
 interface AiConversationProps {
@@ -30,29 +47,51 @@ interface AiConversationProps {
 }
 
 interface AnalysisPhase {
+  id: string;
   name: string;
   weight: number;
   status: 'pending' | 'in-progress' | 'completed';
   progress: number;
+  icon: React.ReactNode;
+  detail?: string;
 }
 
 const agentConfig = {
   alphaCodeExpert: {
-    name: "Alpha Code Expert",
+    name: "Code Expert",
     avatar: "👨‍💻",
-    color: "bg-blue-500",
+    color: "bg-gradient-to-br from-blue-500 to-blue-600",
+    borderColor: "border-blue-400",
   },
   mindMapSpecialist: {
-    name: "Mind Map Specialist",
+    name: "Visualization Expert",
     avatar: "🧠",
-    color: "bg-green-500",
+    color: "bg-gradient-to-br from-purple-500 to-purple-600",
+    borderColor: "border-purple-400",
   },
   integrationExpert: {
     name: "Integration Expert",
     avatar: "🔄",
-    color: "bg-purple-500",
+    color: "bg-gradient-to-br from-indigo-500 to-indigo-600",
+    borderColor: "border-indigo-400",
   },
 };
+
+// Fun facts about programming to display during analysis
+const programmingFacts = [
+  "The first computer bug was an actual bug - a moth trapped in a relay of the Harvard Mark II computer in 1947.",
+  "JavaScript was created in just 10 days by Brendan Eich in 1995.",
+  "The average programmer types about 50-70 words per minute.",
+  "There are over 700 different programming languages.",
+  "The term 'debugging' dates back to the 1940s when Grace Hopper actually found a moth in a computer.",
+  "The first computer programmer was Ada Lovelace, who wrote an algorithm for the Analytical Engine in the 1840s.",
+  "About 70% of coding is understanding the code, 20% is modifying it, and only 10% is writing new code.",
+  "Python was named after Monty Python, not the snake.",
+  "The most expensive bug in history was the Therac-25 radiation therapy machine bug, which cost several lives.",
+  "GitHub's Octocat mascot is named 'Mona'.",
+  "The first version control system, SCCS, was developed at Bell Labs in 1972.",
+  "The average software developer spends around 30% of their time dealing with technical debt.",
+];
 
 const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) => {
   const { geminiApiKey, gitHubApiKey } = useApi();
@@ -68,17 +107,60 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [apiCallsCompleted, setApiCallsCompleted] = useState(0);
   const [totalApiCalls, setTotalApiCalls] = useState(0);
-  const [phases, setPhases] = useState<AnalysisPhase[]>([
-    { name: "Repository structure", weight: 0.3, status: 'pending', progress: 0 },
-    { name: "Code analysis", weight: 0.3, status: 'pending', progress: 0 },
-    { name: "Generating visualization", weight: 0.3, status: 'pending', progress: 0 },
-    { name: "Preparing conversation", weight: 0.1, status: 'pending', progress: 0 }
-  ]);
+  const [currentFile, setCurrentFile] = useState<string | null>(null);
+  const [currentFileType, setCurrentFileType] = useState<string | null>(null);
+  const [currentDirectory, setCurrentDirectory] = useState<string | null>(null);
+  const [fileCount, setFileCount] = useState<number>(0);
+  const [directoryCount, setDirectoryCount] = useState<number>(0);
+  const [activePhaseIndex, setActivePhaseIndex] = useState(0);
+  const [randomFact, setRandomFact] = useState("");
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const [showMessages, setShowMessages] = useState(false);
+  const [showMessages, setShowMessages] = useState(true); // Start showing messages immediately
   const [resultsReady, setResultsReady] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'progress' | 'messages'>('progress');
+  const [activeTab, setActiveTab] = useState<'messages'>('messages');
+  
+  // Define analysis phases
+  const phases: AnalysisPhase[] = [
+    { 
+      id: "structure", 
+      name: "Repository structure", 
+      weight: 0.3, 
+      status: 'pending', 
+      progress: 0,
+      icon: <Folder className="h-4 w-4" />
+    },
+    { 
+      id: "code", 
+      name: "Code analysis", 
+      weight: 0.3, 
+      status: 'pending', 
+      progress: 0,
+      icon: <Code className="h-4 w-4" />
+    },
+    { 
+      id: "visualization", 
+      name: "Generating visualization", 
+      weight: 0.3, 
+      status: 'pending', 
+      progress: 0, 
+      icon: <Braces className="h-4 w-4" />
+    },
+    { 
+      id: "finalizing", 
+      name: "Finalizing analysis", 
+      weight: 0.1, 
+      status: 'pending', 
+      progress: 0,
+      icon: <GitBranch className="h-4 w-4" />
+    }
+  ];
+  
+  // Initialize a random programming fact
+  useEffect(() => {
+    const factIndex = Math.floor(Math.random() * programmingFacts.length);
+    setRandomFact(programmingFacts[factIndex]);
+  }, []);
   
   // Update elapsed time and countdown
   useEffect(() => {
@@ -112,17 +194,6 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     setProgress(Math.min(99, Math.round(weightedProgress)));
   }, [phases]);
   
-  // Only start showing messages when analysis is complete and we're ready to display
-  useEffect(() => {
-    if (analysisComplete && showMessages && visibleIndex === -1 && messages.length > 0) {
-      // Transition directly to chat once data is loaded
-      setTimeout(() => {
-        setVisibleIndex(0);
-        setActiveTab('messages');
-      }, 500);
-    }
-  }, [analysisComplete, showMessages, messages, visibleIndex]);
-  
   // Only call onComplete when results are truly ready and all messages are displayed
   useEffect(() => {
     if (resultsReady && !isLoading) {
@@ -141,7 +212,7 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     // Fetch real data from GitHub API
     const fetchData = async () => {
       setIsLoading(true);
-      setShowMessages(false);
+      setShowMessages(true);
       setResultsReady(false);
       setAnalysisError(null);
       
@@ -163,10 +234,46 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       // Update phase status
       updatePhaseStatus(0, 'in-progress');
       
+      // Add initial conversation message
+      const initialMessages: Message[] = [
+        {
+          agent: "integrationExpert",
+          content: `Starting analysis of ${repoInfo.owner}/${repoInfo.repo}. Let's see what we can discover!`
+        }
+      ];
+      setMessages(initialMessages);
+      setVisibleIndex(0);
+      
       // Set up a progress tracker with enhanced details
-      const progressCallback = (completed: number, total: number, phase: number = 0) => {
+      const progressCallback = (completed: number, total: number, phase: number = 0, filePath?: string, fileType?: string) => {
         setApiCallsCompleted(completed);
         setTotalApiCalls(total);
+        
+        if (filePath) {
+          // Extract directory path
+          const parts = filePath.split('/');
+          const fileName = parts.pop() || '';
+          const dirPath = parts.join('/');
+          
+          setCurrentFile(fileName);
+          setCurrentFileType(fileType || null);
+          setCurrentDirectory(dirPath || 'root');
+          
+          // Add occasional messages about files being analyzed
+          if (completed % 5 === 0 && completed > 0) {
+            const extensionMatch = fileName.match(/\.([a-zA-Z0-9]+)$/);
+            const extension = extensionMatch ? extensionMatch[1] : 'unknown';
+            
+            const newMessage: Message = {
+              agent: getRandomAgent(),
+              content: getRandomFileComment(fileName, extension, dirPath),
+              highlight: fileName
+            };
+            
+            setMessages(prev => [...prev, newMessage]);
+            setVisibleIndex(prev => prev + 1);
+          }
+        }
         
         // Update appropriate phase progress
         const phaseProgress = Math.min(Math.floor((completed / total) * 100), 100);
@@ -188,13 +295,6 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
       };
       
       try {
-        // Show analysis starting message
-        const initialMessage: Message = {
-          agent: "integrationExpert" as AIAgent,
-          content: `Starting analysis of ${repoInfo.owner}/${repoInfo.repo}. Connecting to GitHub API...`
-        };
-        setMessages([initialMessage]);
-        
         // Fetch repository data with progress tracking
         const data = await fetchRepositoryData(repoUrl, gitHubApiKey, progressCallback);
         setRepoData(data);
@@ -206,12 +306,34 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
           return;
         }
         
+        // Count total files and directories
+        let files = 0;
+        let directories = 0;
+        
+        Object.keys(data.files).forEach(dir => {
+          directories++;
+          files += data.files[dir].filter(file => file.type === 'file').length;
+        });
+        
+        setFileCount(files);
+        setDirectoryCount(directories);
+        
+        // Add initial findings message
+        const findingsMessage: Message = {
+          agent: "alphaCodeExpert",
+          content: `I've found ${files} files across ${directories} directories. The primary language appears to be ${data.repo.language || 'not specified'}. Let me analyze the code structure...`
+        };
+        
+        setMessages(prev => [...prev, findingsMessage]);
+        setVisibleIndex(prev => prev + 1);
+        
         // Mark phase 1 as complete
         updatePhaseStatus(0, 'completed');
         updatePhaseProgress(0, 100);
         
         // Start phase 2 - code analysis
         updatePhaseStatus(1, 'in-progress');
+        setActivePhaseIndex(1);
         
         // Generate AI conversation based on the repository data
         const progressPhase2 = (progress: number) => {
@@ -227,32 +349,58 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
         
         // Start phase 3 - visualization
         updatePhaseStatus(2, 'in-progress');
+        setActivePhaseIndex(2);
         
-        // Simulate visualization generation (will be replaced with actual visualization in a real implementation)
-        setTimeout(() => {
-          updatePhaseProgress(2, 100);
-          updatePhaseStatus(2, 'completed');
+        // Add visualization message
+        const visualizationMessage: Message = {
+          agent: "mindMapSpecialist",
+          content: `I'm creating a visual representation of the repository structure. This will help you understand the organization and relationships between different components.`
+        };
+        
+        setMessages(prev => [...prev, visualizationMessage]);
+        setVisibleIndex(prev => prev + 1);
+        
+        // Simulate visualization generation with progress updates
+        const visualizationInterval = setInterval(() => {
+          updatePhaseProgress(2, prev => Math.min(prev + 10, 100));
           
-          // Start phase 4 - preparing conversation
-          updatePhaseStatus(3, 'in-progress');
-          
-          // Replace the initial "Starting analysis" message with the real conversation
-          setMessages(aiMessages);
-          
-          // Wait a bit before finalizing phase 4
-          setTimeout(() => {
-            updatePhaseProgress(3, 100);
-            updatePhaseStatus(3, 'completed');
+          if (phases[2].progress >= 100) {
+            clearInterval(visualizationInterval);
             
-            // Mark analysis as complete but don't show messages yet
-            setAnalysisComplete(true);
+            // Mark visualization phase as complete
+            updatePhaseStatus(2, 'completed');
             
-            // Transition directly to chat once data is loaded
+            // Start final phase
+            updatePhaseStatus(3, 'in-progress');
+            setActivePhaseIndex(3);
+            
+            // Add the AI conversation messages
             setTimeout(() => {
-              setShowMessages(true);
-            }, 500);
-          }, 800);
-        }, 1000);
+              // Add the generated conversation messages
+              setMessages(prev => [...prev, ...aiMessages.slice(2)]); // Skip the first two messages as we've added custom ones
+              
+              // Update visible index to show one message at a time
+              const showMessagesInterval = setInterval(() => {
+                setVisibleIndex(prev => {
+                  const newIndex = prev + 1;
+                  if (newIndex >= prev.length + aiMessages.length - 2) {
+                    clearInterval(showMessagesInterval);
+                    
+                    // Complete the final phase
+                    updatePhaseProgress(3, 100);
+                    updatePhaseStatus(3, 'completed');
+                    
+                    // Mark analysis as complete
+                    setAnalysisComplete(true);
+                    setIsLoading(false);
+                    setResultsReady(true);
+                  }
+                  return newIndex;
+                });
+              }, 1500);
+            }, 1000);
+          }
+        }, 300);
       } catch (error) {
         console.error("Error in AI conversation:", error);
         const errorMsg = error instanceof Error ? error.message : "Unknown error occurred";
@@ -270,24 +418,59 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     };
     
     fetchData();
-  }, [repoUrl, gitHubApiKey, geminiApiKey]);
+  }, [repoUrl, gitHubApiKey, geminiApiKey, onComplete, phases]);
+  
+  // Helper function to get a random agent for messages
+  const getRandomAgent = (): AIAgent => {
+    const agents: AIAgent[] = ["alphaCodeExpert", "mindMapSpecialist", "integrationExpert"];
+    return agents[Math.floor(Math.random() * agents.length)];
+  };
+  
+  // Helper function to generate random comments about files
+  const getRandomFileComment = (fileName: string, extension: string, dirPath: string): string => {
+    const fileComments = [
+      `Looking at ${fileName} in the ${dirPath || 'root'} directory. Nice ${extension} code here!`,
+      `Analyzing ${fileName}... This ${extension} file has some interesting patterns.`,
+      `Found ${fileName} - this looks like a key component in the ${dirPath || 'root'} structure.`,
+      `Examining ${fileName}... I see some well-structured ${extension} code.`,
+      `${fileName} appears to be ${Math.random() > 0.5 ? 'well documented' : 'could use more comments'}.`,
+      `This ${extension} file (${fileName}) is contributing to the overall architecture.`,
+      `${fileName} seems to be handling ${dirPath.includes('util') ? 'utility functions' : dirPath.includes('component') ? 'UI components' : 'core functionality'}.`,
+      `Interesting implementation in ${fileName}. The ${extension} code is ${Math.random() > 0.5 ? 'clean and maintainable' : 'somewhat complex but effective'}.`
+    ];
+    
+    return fileComments[Math.floor(Math.random() * fileComments.length)];
+  };
   
   // Helper function to update phase status
   const updatePhaseStatus = (phaseIndex: number, status: 'pending' | 'in-progress' | 'completed') => {
-    setPhases(prevPhases => 
-      prevPhases.map((phase, idx) => 
-        idx === phaseIndex ? { ...phase, status } : phase
-      )
-    );
+    const updatedPhases = [...phases];
+    updatedPhases[phaseIndex] = {
+      ...updatedPhases[phaseIndex],
+      status
+    };
+    
+    if (status === 'in-progress') {
+      setActivePhaseIndex(phaseIndex);
+    }
   };
   
   // Helper function to update phase progress
-  const updatePhaseProgress = (phaseIndex: number, progress: number) => {
-    setPhases(prevPhases => 
-      prevPhases.map((phase, idx) => 
-        idx === phaseIndex ? { ...phase, progress } : phase
-      )
-    );
+  const updatePhaseProgress = (phaseIndex: number, progress: number | ((prev: number) => number)) => {
+    const updatedPhases = [...phases];
+    const currentProgress = updatedPhases[phaseIndex].progress;
+    
+    updatedPhases[phaseIndex] = {
+      ...updatedPhases[phaseIndex],
+      progress: typeof progress === 'function' ? progress(currentProgress) : progress
+    };
+    
+    if (phaseIndex === activePhaseIndex) {
+      // Update phase detail based on the current file/directory
+      if (currentFile && currentDirectory) {
+        updatedPhases[phaseIndex].detail = `${currentDirectory}/${currentFile}`;
+      }
+    }
   };
   
   const handleMessageComplete = () => {
@@ -311,49 +494,49 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // Calculate progress percentage for the radial progress indicator
-  const getProgressPercentage = (phase: AnalysisPhase) => {
-    return phase.status === 'completed' ? 100 : phase.progress;
-  };
-
   // Get status indicator component based on phase status
   const getStatusIndicator = (status: 'pending' | 'in-progress' | 'completed') => {
     switch (status) {
       case 'completed':
         return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'in-progress':
-        return <Loader className="h-4 w-4 text-blue-500 animate-spin" />;
+        return <Loader className="h-4 w-4 text-indigo-500 animate-spin" />;
       default:
         return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
   return (
-    <div className="flex flex-col space-y-6 p-4 max-w-3xl mx-auto h-full">
-      {/* Header */}
-      <Card className="bg-gradient-to-br from-card/80 to-background/60 backdrop-blur-md border-border/50 shadow-lg overflow-hidden">
-        <CardContent className="p-6">
-          <div className="text-center">
-            <h2 className="text-xl font-semibold mb-2 bg-gradient-to-r from-primary to-blue-500 text-transparent bg-clip-text">
-              {isLoading ? "Repository Analysis" : "AI Analysis Results"}
-            </h2>
-            
-            {isLoading && (
-              <div className="mt-4 relative">
-                {/* Radial progress indicator */}
-                <div className="w-24 h-24 mx-auto relative mb-4">
+    <div className="flex flex-col space-y-6 h-full">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* Progress Card */}
+        <Card className="bg-gradient-to-br from-card/80 to-background/60 backdrop-blur-md border-border/50 shadow-lg overflow-hidden col-span-1">
+          <CardContent className="p-6">
+            <div className="flex flex-col space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-medium bg-gradient-to-r from-indigo-400 to-purple-400 text-transparent bg-clip-text">
+                  Repository Analysis
+                </h2>
+                <Badge variant="outline" className="bg-background/20 backdrop-blur-sm">
+                  {progress}% complete
+                </Badge>
+              </div>
+              
+              {/* Progress radial */}
+              <div className="flex justify-center">
+                <div className="relative w-24 h-24">
                   <svg className="w-full h-full" viewBox="0 0 100 100">
                     <circle 
                       className="text-muted/20 stroke-current" 
-                      strokeWidth="8" 
+                      strokeWidth="10" 
                       cx="50" 
                       cy="50" 
                       r="40" 
                       fill="transparent"
                     />
                     <circle 
-                      className="text-primary stroke-current" 
-                      strokeWidth="8" 
+                      className="text-indigo-500 stroke-current" 
+                      strokeWidth="10" 
                       strokeLinecap="round" 
                       cx="50" 
                       cy="50" 
@@ -375,171 +558,221 @@ const AiConversation: React.FC<AiConversationProps> = ({ repoUrl, onComplete }) 
                     </text>
                   </svg>
                 </div>
-                
-                {/* Timer display */}
-                <div className="flex justify-center items-center gap-2 text-muted-foreground mb-4">
-                  <Clock className="h-4 w-4" />
-                  {timeRemaining !== null ? (
-                    <span className="text-amber-500 font-medium">
-                      {formatTime(timeRemaining)} remaining
-                    </span>
-                  ) : (
-                    <span>Calculating time...</span>
-                  )}
-                </div>
-
-                {/* Repository info */}
-                <div className="bg-muted/30 backdrop-blur-lg rounded-lg p-3 mb-4 border border-border/50">
-                  <h3 className="text-sm font-medium mb-2">Analyzing Repository</h3>
-                  <div className="text-sm text-muted-foreground truncate">
-                    {repoUrl.replace('https://github.com/', '')}
-                  </div>
-                  
-                  {totalApiCalls > 0 && (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      <Badge variant="outline" className="bg-background/50">
-                        {apiCallsCompleted} of {totalApiCalls} files analyzed
-                      </Badge>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {/* Phase progress */}
-            <div className="space-y-3 bg-background/40 backdrop-blur-sm rounded-lg p-4 border border-border/30">
-              <div className="flex justify-between items-center text-sm font-medium">
-                <span>Analysis Progress</span>
-                <span className="text-xs text-muted-foreground">
-                  {isLoading ? `${progress}% complete` : 'Complete'}
-                </span>
               </div>
               
-              <div className="space-y-2.5">
-                {phases.map((phase, idx) => (
-                  <div key={idx} className="group">
-                    <div className="flex items-center gap-2">
-                      {getStatusIndicator(phase.status)}
-                      <span className={`text-xs ${phase.status === 'in-progress' ? 'font-medium text-primary' : 'text-muted-foreground'}`}>
-                        {phase.name}
-                      </span>
-                      <div className="grow">
-                        <div className="h-1.5 w-full bg-muted/30 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-300 ${
-                              phase.status === 'completed' 
-                                ? 'bg-green-500' 
-                                : phase.status === 'in-progress' 
-                                  ? 'bg-gradient-to-r from-blue-500 to-primary animate-pulse' 
-                                  : 'bg-muted'
-                            }`}
-                            style={{ width: `${getProgressPercentage(phase)}%` }}
-                          />
-                        </div>
-                      </div>
-                      <Badge 
-                        variant={phase.status === 'completed' ? 'outline' : 'secondary'} 
-                        className="ml-auto text-xs bg-background/50 border-border/50"
-                      >
-                        {phase.progress}%
-                      </Badge>
-                    </div>
+              {/* Timer display */}
+              <div className="flex justify-center items-center gap-2 text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                {timeRemaining !== null ? (
+                  <span className="text-amber-500 font-medium">
+                    {formatTime(timeRemaining)} remaining
+                  </span>
+                ) : (
+                  <span>Calculating time...</span>
+                )}
+              </div>
+              
+              {/* Repository stats */}
+              {repoData && (
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div className="bg-background/20 backdrop-blur-sm rounded-lg p-2 flex flex-col items-center">
+                    <span className="text-xs text-muted-foreground">Files</span>
+                    <span className="font-medium text-lg">{fileCount}</span>
                   </div>
-                ))}
+                  <div className="bg-background/20 backdrop-blur-sm rounded-lg p-2 flex flex-col items-center">
+                    <span className="text-xs text-muted-foreground">Directories</span>
+                    <span className="font-medium text-lg">{directoryCount}</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Current file being analyzed */}
+              {currentFile && currentFileType && isLoading && (
+                <div className="bg-background/20 backdrop-blur-sm rounded-lg p-2">
+                  <div className="text-xs text-muted-foreground mb-1">Currently analyzing:</div>
+                  <div className="flex items-center gap-2">
+                    {currentFileType === 'directory' ? (
+                      <Folder className="h-4 w-4 text-purple-400" />
+                    ) : (
+                      <FileIcon className="h-4 w-4 text-blue-400" />
+                    )}
+                    <span className="text-sm truncate font-mono">
+                      {currentDirectory && currentDirectory !== 'root' ? `${currentDirectory}/` : ''}
+                      {currentFile}
+                    </span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Random programming fact */}
+              <div className="bg-background/20 backdrop-blur-sm rounded-lg p-3 text-xs text-muted-foreground italic border-l-2 border-indigo-500/50">
+                <span className="font-medium text-primary text-sm">Did you know?</span> {randomFact}
+              </div>
+              
+              {/* Phases progress */}
+              <div className="space-y-3">
+                <div className="text-sm font-medium">Analysis Phases</div>
+                
+                <div className="space-y-2.5">
+                  {phases.map((phase, idx) => (
+                    <div key={phase.id} className="group">
+                      <div className="flex items-center gap-2">
+                        {getStatusIndicator(phase.status)}
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1">
+                            <span className={`text-xs ${phase.status === 'in-progress' ? 'font-medium text-primary' : 'text-muted-foreground'}`}>
+                              {phase.name}
+                            </span>
+                            {phase.icon}
+                          </div>
+                          
+                          {phase.status === 'in-progress' && phase.detail && (
+                            <div className="text-[10px] text-muted-foreground truncate max-w-full">
+                              {phase.detail}
+                            </div>
+                          )}
+                          
+                          <div className="h-1.5 w-full bg-muted/30 rounded-full overflow-hidden mt-1">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-300 ${
+                                phase.status === 'completed' 
+                                  ? 'bg-green-500' 
+                                  : phase.status === 'in-progress' 
+                                    ? 'bg-gradient-to-r from-indigo-500 to-purple-500 animate-pulse' 
+                                    : 'bg-muted'
+                              }`}
+                              style={{ width: `${phase.progress}%` }}
+                            />
+                          </div>
+                        </div>
+                        <Badge 
+                          variant={phase.status === 'completed' ? 'outline' : 'secondary'} 
+                          className="ml-auto text-xs bg-background/50 border-border/50"
+                        >
+                          {phase.progress}%
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tabs for progress and messages */}
-      {(isLoading || showMessages) && (
-        <Card className="bg-gradient-to-br from-card/80 to-background/60 backdrop-blur-md border-border/50 shadow-lg overflow-hidden flex-grow">
+          </CardContent>
+        </Card>
+        
+        {/* Conversation Card */}
+        <Card className="bg-gradient-to-br from-card/80 to-background/60 backdrop-blur-md border-border/50 shadow-lg overflow-hidden lg:col-span-2">
           <CardContent className="p-0">
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'progress' | 'messages')} className="w-full h-full">
-              <TabsList className="w-full bg-muted/30 p-1 border-b border-border/30">
-                <TabsTrigger value="progress" disabled={!isLoading}>Analysis Progress</TabsTrigger>
-                <TabsTrigger value="messages" disabled={!showMessages}>AI Conversation</TabsTrigger>
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'messages')} className="w-full">
+              <TabsList className="w-full rounded-none bg-muted/30 p-0 h-12">
+                <TabsTrigger 
+                  value="messages" 
+                  className="rounded-none flex-1 h-12 data-[state=active]:bg-background/40"
+                >
+                  AI Analysis Conversation
+                </TabsTrigger>
               </TabsList>
               
-              <TabsContent value="progress" className="p-6 space-y-4 h-full">
-                {isLoading && !analysisError && (
-                  <div className="flex flex-col items-center justify-center py-8 text-center h-full">
-                    <div className="space-y-4 max-w-md">
-                      <h3 className="text-lg font-medium">
-                        {phases.find(p => p.status === 'in-progress')?.name || 'Preparing analysis'}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        We're analyzing the repository structure, examining the code patterns, and generating insights.
-                        This process may take a few moments depending on the size and complexity of the codebase.
-                      </p>
-                      
-                      <div className="flex flex-wrap gap-2 justify-center mt-4">
-                        {['Scanning', 'Analyzing', 'Processing'].map((action, i) => (
-                          <Badge key={i} variant="outline" className="bg-background/30 animate-pulse">
-                            {action}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Error state */}
-                {analysisError && (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-                    <h3 className="text-lg font-medium mb-2">Analysis Failed</h3>
-                    <p className="text-sm text-muted-foreground max-w-md">
-                      We encountered an error while analyzing the repository.
-                      Please check the URL and try again.
-                    </p>
-                    <div className="mt-4 p-3 bg-red-500/10 rounded-md text-red-500 text-sm border border-red-500/20">
-                      {analysisError}
-                    </div>
-                  </div>
-                )}
-              </TabsContent>
-              
-              <TabsContent value="messages" className="p-4 space-y-4 max-h-[500px] overflow-y-auto">
-                {showMessages && visibleIndex >= 0 && messages.slice(0, visibleIndex + 1).map((message, index) => {
-                  const agent = agentConfig[message.agent];
+              <TabsContent value="messages" className="mt-0">
+                <ScrollArea className="h-[500px] px-6 py-4">
+                  {showMessages && messages.map((message, index) => {
+                    const agent = agentConfig[message.agent];
+                    const isVisible = index <= visibleIndex;
+                    
+                    if (!isVisible) return null;
 
-                  return (
-                    <div
-                      key={index}
-                      className={`flex items-start space-x-4 animate-fade-in ${
-                        index === visibleIndex ? "opacity-100" : "opacity-90"
-                      }`}
-                      style={{ animationDelay: `${index * 0.2}s` }}
-                    >
-                      <Avatar className={`${agent.color} h-10 w-10 text-xl ring-2 ring-background`}>
-                        <AvatarFallback>{agent.avatar}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col space-y-1 flex-1">
-                        <span className="text-sm font-medium">{agent.name}</span>
-                        <div className="rounded-lg bg-muted/40 backdrop-blur-sm p-3 border border-border/30">
-                          {index === visibleIndex ? (
-                            <TypeWriter
-                              text={message.content}
-                              speed={40} // Slower typing speed for better readability
-                              onComplete={handleMessageComplete}
-                              className="text-sm"
-                            />
-                          ) : (
-                            <span className="text-sm">{message.content}</span>
-                          )}
+                    return (
+                      <div
+                        key={index}
+                        className={`flex items-start space-x-4 mb-6 animate-fade-in ${
+                          index === visibleIndex ? "opacity-100" : "opacity-90"
+                        }`}
+                        style={{ animationDelay: `${index * 0.1}s` }}
+                      >
+                        <Avatar className={`${agent.color} h-10 w-10 text-xl ring-2 ring-background ${agent.borderColor}`}>
+                          <AvatarFallback>{agent.avatar}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col space-y-1 flex-1">
+                          <span className="text-sm font-medium">{agent.name}</span>
+                          <div className="rounded-lg bg-muted/40 backdrop-blur-sm p-3 border border-border/30 shadow-sm">
+                            {index === visibleIndex ? (
+                              <TypeWriter
+                                text={message.content}
+                                speed={30} // Slightly faster typing for better engagement
+                                onComplete={handleMessageComplete}
+                                className="text-sm"
+                                highlight={message.highlight}
+                              />
+                            ) : (
+                              <span className="text-sm">
+                                {message.highlight ? (
+                                  <>
+                                    {message.content.split(message.highlight).map((part, i, arr) => (
+                                      <React.Fragment key={i}>
+                                        {part}
+                                        {i < arr.length - 1 && (
+                                          <span className="bg-indigo-500/20 px-1 rounded text-indigo-200 font-mono">
+                                            {message.highlight}
+                                          </span>
+                                        )}
+                                      </React.Fragment>
+                                    ))}
+                                  </>
+                                ) : (
+                                  message.content
+                                )}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
+                    );
+                  })}
+                  
+                  {messages.length === 0 && (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                        <p className="text-muted-foreground">Initializing analysis...</p>
+                      </div>
                     </div>
-                  );
-                })}
-                <div ref={messagesEndRef} />
+                  )}
+                  
+                  {/* Error state */}
+                  {analysisError && (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+                      <h3 className="text-lg font-medium mb-2">Analysis Failed</h3>
+                      <p className="text-sm text-muted-foreground max-w-md">
+                        We encountered an error while analyzing the repository.
+                        Please check the URL and try again.
+                      </p>
+                      <div className="mt-4 p-3 bg-red-500/10 rounded-md text-red-500 text-sm border border-red-500/20">
+                        {analysisError}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div ref={messagesEndRef} />
+                </ScrollArea>
+                
+                {analysisComplete && (
+                  <div className="p-4 border-t border-border/20 bg-muted/20 flex justify-center">
+                    <Button
+                      variant="outline"
+                      className="bg-background/40 backdrop-blur-sm"
+                      onClick={() => onComplete()}
+                    >
+                      <ChevronRight className="mr-2 h-4 w-4" />
+                      View Repository Visualization
+                    </Button>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
-      )}
+      </div>
     </div>
   );
 };

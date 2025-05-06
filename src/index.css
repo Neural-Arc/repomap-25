@@ -34,15 +34,6 @@
     --ring: 0 0% 50%; /* Gray for focus rings */
 
     --radius: 0.5rem;
-
-    --sidebar-background: 0 0% 7%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 0 0% 100%;
-    --sidebar-primary-foreground: 0 0% 0%;
-    --sidebar-accent: 0 0% 15%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 0 0% 15%;
-    --sidebar-ring: 0 0% 50%;
   }
 }
 
@@ -67,6 +58,51 @@
   animation: typing 3.5s steps(40, end), cursor-blink 0.75s step-end infinite;
 }
 
+/* Custom Animations */
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in-scale {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 0.5rem rgba(139, 92, 246, 0.1));
+  }
+  50% {
+    filter: drop-shadow(0 0 0.75rem rgba(139, 92, 246, 0.3));
+  }
+}
+
+/* Global animation classes */
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+
+.animate-fade-in-scale {
+  animation: fade-in-scale 0.5s ease-out forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
 /* Force scrollbar to be visible and styled */
 ::-webkit-scrollbar {
   width: 8px;
@@ -85,4 +121,31 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+/* Tree view styling */
+.tree-node {
+  @apply transition-all duration-200;
+}
+
+/* Repository visualizer styles */
+.node--highlighted circle {
+  stroke: rgba(99, 102, 241, 0.8);
+  stroke-width: 2.5px;
+  filter: drop-shadow(0 0 3px rgba(99, 102, 241, 0.5));
+}
+
+.link--highlighted {
+  stroke: rgba(99, 102, 241, 0.8);
+  stroke-opacity: 1;
+  stroke-width: 2px;
+}
+
+/* Gradient text utilities */
+.gradient-text-primary {
+  @apply bg-gradient-to-r from-indigo-400 to-purple-400 text-transparent bg-clip-text;
+}
+
+.gradient-text-secondary {
+  @apply bg-gradient-to-r from-pink-400 to-indigo-400 text-transparent bg-clip-text;
 }

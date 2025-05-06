@@ -1,55 +1,64 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from 'react';
 
 interface TypeWriterProps {
   text: string;
   speed?: number;
-  delay?: number;
   onComplete?: () => void;
   className?: string;
+  highlight?: string; // Text to highlight
 }
 
-const TypeWriter: React.FC<TypeWriterProps> = ({
-  text,
-  speed = 30,
-  delay = 0,
-  onComplete,
+const TypeWriter: React.FC<TypeWriterProps> = ({ 
+  text, 
+  speed = 30, 
+  onComplete, 
   className = "",
+  highlight
 }) => {
-  const [displayedText, setDisplayedText] = useState("");
-  const [index, setIndex] = useState(0);
-  const [started, setStarted] = useState(false);
+  const [displayText, setDisplayText] = useState('');
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isComplete, setIsComplete] = useState(false);
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-
-    // Initial delay before typing starts
-    if (!started) {
-      timer = setTimeout(() => {
-        setStarted(true);
-      }, delay);
-      return () => clearTimeout(timer);
-    }
-
-    // Start typing after delay
-    if (started && index < text.length) {
-      timer = setTimeout(() => {
-        setDisplayedText((prev) => prev + text[index]);
-        setIndex((prevIndex) => prevIndex + 1);
+    if (currentIndex < text.length) {
+      const timeout = setTimeout(() => {
+        setDisplayText(text.substring(0, currentIndex + 1));
+        setCurrentIndex(currentIndex + 1);
       }, speed);
-    } else if (started && index === text.length && onComplete) {
-      timer = setTimeout(() => {
-        onComplete();
-      }, 500);
-    }
 
-    return () => clearTimeout(timer);
-  }, [text, index, speed, delay, onComplete, started]);
+      return () => clearTimeout(timeout);
+    } else {
+      setIsComplete(true);
+      if (onComplete) {
+        onComplete();
+      }
+    }
+  }, [currentIndex, text, speed, onComplete]);
+
+  // If there's highlighted text, we need to render it differently
+  if (highlight && displayText.includes(highlight)) {
+    return (
+      <div className={className}>
+        {displayText.split(highlight).map((part, i, arr) => (
+          <React.Fragment key={i}>
+            {part}
+            {i < arr.length - 1 && (
+              <span className="bg-indigo-500/20 px-1 rounded text-indigo-200 font-mono">
+                {highlight}
+              </span>
+            )}
+          </React.Fragment>
+        ))}
+        {!isComplete && <span className="animate-pulse">|</span>}
+      </div>
+    );
+  }
 
   return (
-    <div className={`${className}`}>
-      {displayedText}
-      {index < text.length && <span className="animate-cursor-blink">|</span>}
+    <div className={className}>
+      {displayText}
+      {!isComplete && <span className="animate-pulse">|</span>}
     </div>
   );
 };

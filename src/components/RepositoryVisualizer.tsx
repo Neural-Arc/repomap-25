@@ -120,6 +120,7 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
   const [isDetailSheetOpen, setIsDetailSheetOpen] = useState<boolean>(false);
   const [fileContent, setFileContent] = useState<string>("");
   const [fileContentLoading, setFileContentLoading] = useState<boolean>(false);
+  const [graphInitialized, setGraphInitialized] = useState<boolean>(false);
   
   const svgRef = useRef<SVGSVGElement>(null);
   const graphContainerRef = useRef<HTMLDivElement>(null);
@@ -129,11 +130,30 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
   const [links, setLinks] = useState<D3Link[]>([]);
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
   
+  // Add effect to handle tab changes
+  useEffect(() => {
+    if (selectedView === 'graph' && nodes.length > 0 && links.length > 0) {
+      // Force a reflow to ensure container dimensions are correct
+      if (graphContainerRef.current) {
+        graphContainerRef.current.style.display = 'none';
+        graphContainerRef.current.offsetHeight; // Force reflow
+        graphContainerRef.current.style.display = 'block';
+      }
+      
+      // Initialize graph after a short delay to ensure container is ready
+      setTimeout(() => {
+        initializeGraph(nodes, links);
+        setGraphInitialized(true);
+      }, 50);
+    }
+  }, [selectedView, nodes, links]);
+  
   // Initialize the visualization
   useEffect(() => {
     const fetchRepo = async () => {
       setLoading(true);
       setError(null);
+      setGraphInitialized(false);
       
       try {
         const repoInfo = parseGitHubUrl(repoUrl);
@@ -147,10 +167,7 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
         const progressCallback = (completed: number, total: number, phase: number) => {
           // Update loading progress
           if (completed === total) {
-            // Add a small delay before completing to ensure smooth transition
-            setTimeout(() => {
-              setLoading(false);
-            }, 500);
+            setLoading(false);
           }
         };
         
@@ -171,16 +188,12 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
         setNodes(nodes);
         setLinks(links);
         
-        // Initialize force-directed graph
+        // Initialize force-directed graph immediately if in graph view
         if (selectedView === 'graph') {
-          // Add a small delay to ensure the container is ready
-          setTimeout(() => {
+          requestAnimationFrame(() => {
             initializeGraph(nodes, links);
-            // Ensure loading is complete after graph initialization
-            setLoading(false);
-          }, 100);
-        } else {
-          setLoading(false);
+            setGraphInitialized(true);
+          });
         }
       } catch (error) {
         console.error("Error fetching repository:", error);
@@ -197,7 +210,21 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
         simulation.stop();
       }
     };
-  }, [repoUrl, gitHubApiKey, selectedView]);
+  }, [repoUrl, gitHubApiKey]);
+  
+  // Handle window resize for responsive graph
+  useEffect(() => {
+    const handleResize = () => {
+      if (simulation && nodes.length > 0 && links.length > 0 && selectedView === 'graph') {
+        requestAnimationFrame(() => {
+          initializeGraph(nodes, links);
+        });
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [simulation, nodes, links, selectedView]);
   
   // Initialize the force-directed graph
   const initializeGraph = useCallback((nodes: D3Node[], links: D3Link[]) => {
@@ -206,23 +233,37 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
     // Clear previous graph
     d3.select(svgRef.current).selectAll("*").remove();
     
-    const width = graphContainerRef.current.clientWidth;
-    const height = graphContainerRef.current.clientHeight || 600;
+    // Get container dimensions
+    const container = graphContainerRef.current;
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 600;
     
-    // Create SVG with explicit dimensions and viewBox
+    console.log('Container dimensions:', width, height); // Debug log
+    
+    // Create SVG with explicit dimensions
     const svg = d3.select(svgRef.current)
-      .attr("width", "100%")
-      .attr("height", "100%")
+      .attr("width", width)
+      .attr("height", height)
       .attr("viewBox", [0, 0, width, height])
       .attr("preserveAspectRatio", "xMidYMid meet")
       .style("background", "transparent");
     
-    // Create force simulation with adjusted parameters
+    // Create force simulation with optimized parameters
     const sim = d3.forceSimulation<D3Node>(nodes)
-      .force("link", d3.forceLink<D3Node, D3Link>(links).id(d => d.id).distance(150))
-      .force("charge", d3.forceManyBody().strength(-300))
+      .force("link", d3.forceLink<D3Node, D3Link>(links)
+        .id(d => d.id)
+        .distance(80)
+        .strength(0.5))
+      .force("charge", d3.forceManyBody()
+        .strength(-100)
+        .distanceMax(200))
       .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide<D3Node>().radius(d => d.radius + 30));
+      .force("collision", d3.forceCollide<D3Node>()
+        .radius(d => d.radius + 10)
+        .strength(0.7))
+      .alphaDecay(0.02)
+      .velocityDecay(0.4)
+      .alpha(0.5);
     
     // Add zoom behavior
     const zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
@@ -237,18 +278,18 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
     // Create main group for all elements
     const g = svg.append("g");
     
-    // Create links with improved visibility
+    // Create links
     const link = g.append("g")
       .attr("class", "links")
       .selectAll("line")
       .data(links)
       .join("line")
       .attr("stroke", "#999")
-      .attr("stroke-opacity", 0.6)
-      .attr("stroke-width", d => Math.sqrt(d.value) * 2)
-      .attr("stroke-dasharray", "5,5");
+      .attr("stroke-opacity", 0.4)
+      .attr("stroke-width", 1)
+      .attr("stroke-dasharray", "2,2");
     
-    // Create node groups with improved visibility
+    // Create nodes
     const node = g.append("g")
       .attr("class", "nodes")
       .selectAll(".node")
@@ -292,13 +333,13 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
         link.classed("link--highlighted", false);
       });
     
-    // Add circles to nodes with improved visibility
+    // Add circles to nodes
     node.append("circle")
       .attr("r", d => d.radius)
       .attr("fill", d => d.color)
       .attr("stroke", "#fff")
-      .attr("stroke-width", 2)
-      .attr("filter", "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))");
+      .attr("stroke-width", 1)
+      .attr("filter", "drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2))");
     
     // Add icons to nodes
     node.append("text")
@@ -306,22 +347,22 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
       .attr("text-anchor", "middle")
       .attr("fill", "#fff")
       .attr("font-family", "sans-serif")
-      .attr("font-size", "12px")
+      .attr("font-size", "9px")
       .text(d => d.type === 'directory' ? "📁" : getFileIcon(d.extension || ""));
     
-    // Add labels to nodes with improved visibility
+    // Add labels to nodes
     node.append("text")
-      .attr("dy", 30)
+      .attr("dy", 20)
       .attr("text-anchor", "middle")
       .attr("fill", "#fff")
       .attr("font-family", "sans-serif")
-      .attr("font-size", "12px")
+      .attr("font-size", "9px")
       .attr("font-weight", "bold")
       .text(d => {
         const name = d.name;
-        return name.length > 15 ? name.substring(0, 12) + '...' : name;
+        return name.length > 10 ? name.substring(0, 8) + '...' : name;
       })
-      .attr("filter", "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7))");
+      .attr("filter", "drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))");
     
     // Update positions on each tick
     sim.on("tick", () => {
@@ -339,7 +380,7 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
     // Initial zoom to fit
     const initialTransform = d3.zoomIdentity
       .translate(width / 2, height / 2)
-      .scale(0.8);
+      .scale(1);
     
     svg.call(zoomBehavior.transform as any, initialTransform);
     
@@ -349,18 +390,6 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
       }
     };
   }, [rootNode]);
-  
-  // Handle window resize for responsive graph
-  useEffect(() => {
-    const handleResize = () => {
-      if (simulation && nodes.length > 0 && links.length > 0) {
-        initializeGraph(nodes, links);
-      }
-    };
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [simulation, nodes, links, initializeGraph]);
   
   // Helper function to find a node by ID
   const findNodeById = (node: TreeNode | null, id: string): TreeNode | null => {
@@ -464,17 +493,22 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
     
     const nodes: D3Node[] = [];
     const links: D3Link[] = [];
+    const processedNodes = new Set<string>();
     
     // Helper function to recursively add nodes and links
     const processNode = (node: TreeNode, parent: TreeNode | null = null) => {
-      // Add node
+      // Skip if node already processed
+      if (processedNodes.has(node.id)) return;
+      processedNodes.add(node.id);
+      
+      // Add node with optimized properties
       const d3Node: D3Node = {
         id: node.id,
         name: node.name,
         path: node.path,
         type: node.type,
         extension: node.extension,
-        radius: node.type === 'directory' ? 18 : 14,
+        radius: node.type === 'directory' ? 16 : 12, // Reduced radius
         color: node.type === 'directory' 
           ? 'rgba(139, 92, 246, 0.8)' 
           : (node.color || FILE_EXTENSIONS_COLORS.default)
@@ -482,7 +516,7 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
       
       nodes.push(d3Node);
       
-      // Add link to parent
+      // Add link to parent if exists
       if (parent) {
         links.push({
           source: parent.id,
@@ -503,14 +537,40 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
   };
   
   // Handle file download
-  const handleDownload = () => {
-    const downloadUrl = getRepoDownloadUrl(repoUrl);
-    
-    if (downloadUrl) {
-      window.open(downloadUrl, '_blank');
+  const handleDownload = async () => {
+    try {
+      const repoInfo = parseGitHubUrl(repoUrl);
+      if (!repoInfo) {
+        toast.error("Invalid GitHub repository URL");
+        return;
+      }
+
+      const { owner, repo } = repoInfo;
+      
+      // First, try to get the default branch
+      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch repository information');
+      }
+      
+      const repoData = await response.json();
+      const defaultBranch = repoData.default_branch || 'main';
+      
+      // Construct the download URL using the default branch
+      const downloadUrl = `https://github.com/${owner}/${repo}/archive/${defaultBranch}.zip`;
+      
+      // Create a temporary link element to trigger the download
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', `${repo}-${defaultBranch}.zip`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
       toast.success("Download started!");
-    } else {
-      toast.error("Could not generate download link");
+    } catch (error) {
+      console.error("Error downloading repository:", error);
+      toast.error("Failed to download repository. Please try again.");
     }
   };
   
@@ -522,13 +582,14 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
   
   // Handle zoom controls
   const handleZoomIn = () => {
-    if (svgRef.current && zoomLevel < 3) {
+    if (svgRef.current) {
       const svg = d3.select(svgRef.current);
+      const zoom = d3.zoom<SVGSVGElement, unknown>();
       svg.transition().duration(300)
-        .call(d3.zoom().scaleBy, 1.2);
+        .call(zoom.scaleBy, 1.2);
     }
   };
-  
+
   // Add drag event handlers
   const dragstarted = (event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) => {
     if (!event.active && simulation) simulation.alphaTarget(0.3).restart();
@@ -548,21 +609,23 @@ const RepositoryVisualizer: React.FC<RepositoryVisualizerProps> = ({ repoUrl }) 
   };
 
   const handleZoomOut = () => {
-    if (svgRef.current && zoomLevel > 0.2) {
+    if (svgRef.current) {
       const svg = d3.select(svgRef.current);
+      const zoom = d3.zoom<SVGSVGElement, unknown>();
       svg.transition().duration(300)
-        .call(d3.zoom().scaleBy, 1 / 1.2);
+        .call(zoom.scaleBy, 1 / 1.2);
     }
   };
-  
+
   const handleResetView = () => {
     if (svgRef.current && graphContainerRef.current) {
       const width = graphContainerRef.current.clientWidth;
       const height = graphContainerRef.current.clientHeight || 600;
       const svg = d3.select(svgRef.current);
-      const transform = d3.zoomIdentity.translate(width / 2, height / 2).scale(1);
+      const zoom = d3.zoom<SVGSVGElement, unknown>();
+      const transform = d3.zoomIdentity.translate(width / 2, height / 2).scale(0.8);
       svg.transition().duration(500)
-        .call(d3.zoom().transform, transform);
+        .call(zoom.transform, transform);
     }
   };
   
@@ -854,7 +917,11 @@ export default ExampleComponent;`;
         </div>
       </div>
       
-      <Tabs defaultValue="visualization" className="w-full">
+      <Tabs 
+        defaultValue="visualization" 
+        className="w-full"
+        onValueChange={(value) => setSelectedView(value === 'visualization' ? 'graph' : 'tree')}
+      >
         <div className="flex justify-between items-center mb-4">
           <TabsList className="bg-muted/20 backdrop-blur-sm border border-border/20 p-1">
             <TabsTrigger 
@@ -956,8 +1023,21 @@ export default ExampleComponent;`;
               </TooltipProvider>
             </div>
             
-            <div className="flex-grow" ref={graphContainerRef}>
-              <svg ref={svgRef} className="w-full h-full" />
+            <div 
+              className="flex-grow relative w-full h-full" 
+              ref={graphContainerRef}
+              style={{ minHeight: '500px' }}
+            >
+              <svg 
+                ref={svgRef} 
+                className="w-full h-full"
+                style={{ display: graphInitialized ? 'block' : 'none' }}
+              />
+              {!graphInitialized && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              )}
             </div>
           </div>
         </TabsContent>

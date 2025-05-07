@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from "react";
 import * as d3 from "d3";
 import { toast } from "sonner";
 import { 
@@ -14,7 +14,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RepoNode, getRepoDownloadUrl, convertRepoDataToNodes } from "@/services/githubService";
+import { RepoNode, getRepoDownloadUrl, convertRepoDataToNodes, getFileContent } from "@/services/githubService";
+import debounce from 'lodash/debounce';
 
 interface RadialMindMapProps {
   repoUrl: string;
@@ -74,11 +75,77 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
   const [filterType, setFilterType] = useState<string | null>(null);
   const [fileExtensions, setFileExtensions] = useState<string[]>([]);
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
+  const [fileContent, setFileContent] = useState<string | null>(null);
+  const [isLoadingContent, setIsLoadingContent] = useState(false);
   
   // Track simulation for cleanup
   const simulationRef = useRef<d3.Simulation<D3Node, d3.SimulationLinkDatum<D3Node>> | null>(null);
 
-  // Convert repo data to hierarchical structure for D3
+  // Add state for visibility
+  const [isVisible, setIsVisible] = useState(true);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const initializationAttempted = useRef(false);
+
+  // Add zoom ref
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+
+  // Memoize the processed data with lazy loading
+  const processedData = useMemo(() => {
+    if (!repoData) return { nodes: [], links: [] };
+    const rootNode = convertRepoDataToNodes(repoData);
+    return convertToD3Format(rootNode);
+  }, [repoData]);
+
+  // Optimize simulation configuration
+  const simulationConfig = useMemo(() => ({
+    charge: -150, // Reduced charge for better performance
+    linkDistance: 50, // Reduced distance for better performance
+    linkStrength: 0.15, // Reduced strength for better performance
+    collisionRadius: 1.2, // Reduced collision radius
+    centerStrength: 0.03, // Reduced center strength
+    alphaDecay: 0.08, // Faster stabilization
+    velocityDecay: 0.4 // Faster velocity decay
+  }), []);
+
+  // Debounced search handler
+  const debouncedSearch = useCallback(
+    debounce((value: string) => {
+      setSearchTerm(value);
+    }, 300),
+    []
+  );
+
+  // Update the useEffect for visibility handling
+  useLayoutEffect(() => {
+    if (!containerRef.current) return;
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        setIsVisible(entry.isIntersecting);
+        
+        // If becoming visible and we haven't initialized yet, trigger initialization
+        if (entry.isIntersecting && !initializationAttempted.current) {
+          initializationAttempted.current = true;
+          processRepoData();
+        }
+      },
+      { 
+        threshold: 0.1,
+        rootMargin: '50px' // Add margin to trigger slightly before fully visible
+      }
+    );
+
+    observerRef.current.observe(containerRef.current);
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  // Optimize node processing
   const processRepoData = useCallback(() => {
     if (!repoData) {
       setError("No repository data available");
@@ -87,11 +154,7 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
     }
 
     try {
-      // First convert to the format expected by our visualization
-      const rootNode: RepoNode = convertRepoDataToNodes(repoData);
-      
-      // Now convert to D3 compatible format
-      const { nodes, links } = convertToD3Format(rootNode);
+      const { nodes, links } = processedData;
       
       // Extract unique file extensions for filtering
       const extensions = new Set<string>();
@@ -110,23 +173,27 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
       setError("Failed to process repository data");
       setLoading(false);
     }
-  }, [repoData]);
+  }, [repoData, processedData]);
 
-  // Initialize visualization once data is processed
+  // Update the useEffect for initialization
   useEffect(() => {
     if (loading) {
       processRepoData();
-    } else if (nodes.length > 0 && !error) {
-      initializeVisualization();
+    } else if (nodes.length > 0 && !error && isVisible) {
+      // Add a small delay to ensure DOM is ready
+      const timer = setTimeout(() => {
+        initializeVisualization();
+      }, 50);
+      return () => clearTimeout(timer);
     }
     
     return () => {
-      // Clean up simulation when component unmounts
+      // Clean up simulation when component unmounts or visibility changes
       if (simulationRef.current) {
         simulationRef.current.stop();
       }
     };
-  }, [loading, nodes, links, error, processRepoData]);
+  }, [loading, nodes, links, error, processRepoData, isVisible]);
 
   // Convert hierarchical repo structure to flat D3 nodes and links
   const convertToD3Format = (rootNode: RepoNode): { nodes: D3Node[], links: D3Link[] } => {
@@ -189,9 +256,9 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
     return { nodes, links };
   };
 
-  // Initialize D3 visualization
-  const initializeVisualization = () => {
-    if (!svgRef.current || !containerRef.current || nodes.length === 0) return;
+  // Update the initializeVisualization function to handle visibility
+  const initializeVisualization = useCallback(() => {
+    if (!svgRef.current || !containerRef.current || nodes.length === 0 || !isVisible) return;
     
     // Clear previous visualization
     d3.select(svgRef.current).selectAll("*").remove();
@@ -201,91 +268,36 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
     const centerX = width / 2;
     const centerY = height / 2;
     
-    // Create SVG with gradient background
+    // Create SVG with optimized rendering
     const svg = d3.select(svgRef.current)
       .attr("width", width)
       .attr("height", height)
-      .attr("viewBox", [0, 0, width, height]);
+      .attr("viewBox", [0, 0, width, height])
+      .attr("style", "will-change: transform; transform: translateZ(0)");
     
-    // Add a modern background gradient
-    const defs = svg.append("defs");
-    const gradient = defs.append("linearGradient")
-      .attr("id", "background-gradient")
-      .attr("x1", "0%")
-      .attr("y1", "0%")
-      .attr("x2", "100%")
-      .attr("y2", "100%");
+    // Create main container with hardware acceleration and initial centering
+    const g = svg.append("g")
+      .attr("style", "will-change: transform; transform: translateZ(0)")
+      .attr("transform", `translate(${centerX},${centerY})`);
     
-    gradient.append("stop")
-      .attr("offset", "0%")
-      .attr("stop-color", "rgba(15, 23, 42, 0.9)"); // Dark slate blue
-    
-    gradient.append("stop")
-      .attr("offset", "100%")
-      .attr("stop-color", "rgba(3, 7, 18, 0.95)"); // Even darker blue
-    
-    // Apply background
-    svg.append("rect")
-      .attr("width", width)
-      .attr("height", height)
-      .attr("fill", "url(#background-gradient)");
-    
-    // Add subtle grid pattern
-    const gridSize = 30;
-    svg.append("g")
-      .attr("class", "grid")
-      .selectAll("line")
-      .data(d3.range(0, width, gridSize))
-      .enter()
-      .append("line")
-      .attr("x1", d => d)
-      .attr("y1", 0)
-      .attr("x2", d => d)
-      .attr("y2", height)
-      .attr("stroke", "rgba(148, 163, 184, 0.05)")
-      .attr("stroke-width", 1);
-    
-    svg.select(".grid")
-      .selectAll("line.horizontal")
-      .data(d3.range(0, height, gridSize))
-      .enter()
-      .append("line")
-      .attr("x1", 0)
-      .attr("y1", d => d)
-      .attr("x2", width)
-      .attr("y2", d => d)
-      .attr("stroke", "rgba(148, 163, 184, 0.05)")
-      .attr("stroke-width", 1);
-    
-    // Create zoom behavior
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.1, 4])
-      .on("zoom", (event) => {
-        g.attr("transform", event.transform);
-        setZoomLevel(event.transform.k);
-      });
-    
-    svg.call(zoom);
-    
-    // Main container for all elements with initial zoom
-    const g = svg.append("g");
-    
-    // Create a force layout
+    // Optimize force simulation with better performance settings and centered positioning
     const simulation = d3.forceSimulation<D3Node>(nodes)
-      .force("charge", d3.forceManyBody<D3Node>().strength(-200))
+      .force("charge", d3.forceManyBody<D3Node>().strength(simulationConfig.charge))
       .force("link", d3.forceLink<D3Node, D3Link>(links)
         .id(d => d.id)
-        .distance(d => d.distance || 60)
-        .strength(d => d.strength || 0.2))
-      .force("center", d3.forceCenter(centerX, centerY))
-      .force("collision", d3.forceCollide<D3Node>().radius(d => d.size * 1.5))
-      .force("x", d3.forceX(centerX).strength(0.05))
-      .force("y", d3.forceY(centerY).strength(0.05));
+        .distance(simulationConfig.linkDistance)
+        .strength(simulationConfig.linkStrength))
+      .force("center", d3.forceCenter(0, 0)) // Center at origin since we translated the container
+      .force("collision", d3.forceCollide<D3Node>().radius(d => d.size * simulationConfig.collisionRadius))
+      .force("x", d3.forceX(0).strength(0.2)) // Center at origin
+      .force("y", d3.forceY(0).strength(0.2)) // Center at origin
+      .alphaDecay(simulationConfig.alphaDecay)
+      .velocityDecay(simulationConfig.velocityDecay);
     
     // Store simulation for cleanup
     simulationRef.current = simulation;
     
-    // Create links with curved paths for better visibility
+    // Create links with optimized rendering
     const link = g.append("g")
       .attr("class", "links")
       .selectAll("path")
@@ -299,7 +311,7 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
       .attr("fill", "none")
       .attr("opacity", 0.5);
     
-    // Create node groups with modern design
+    // Create nodes with optimized rendering
     const node = g.append("g")
       .attr("class", "nodes")
       .selectAll(".node")
@@ -314,11 +326,7 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
         .on("start", dragStarted)
         .on("drag", dragged)
         .on("end", dragEnded) as any)
-      .on("click", (event, d) => {
-        event.stopPropagation(); // Prevent triggering zoom
-        setSelectedNode(d);
-        setIsDetailSheetOpen(true);
-      })
+      .on("click", handleNodeClick)
       .on("mouseover", (event, d) => {
         highlightConnections(d);
       })
@@ -326,17 +334,16 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
         resetHighlighting();
       });
     
-    // Add circular node backgrounds with glassmorphism effect
+    // Optimize node rendering with simplified visuals
     node.append("circle")
       .attr("r", d => d.size)
       .attr("fill", d => d.color)
       .attr("fill-opacity", 0.7)
       .attr("stroke", d => d.type === 'directory' ? '#a78bfa' : '#34d399')
       .attr("stroke-width", 1.5)
-      .attr("stroke-opacity", 0.8)
-      .attr("filter", "drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2))");
+      .attr("stroke-opacity", 0.8);
     
-    // Add file/folder icons
+    // Optimize text rendering with simplified labels
     node.append("text")
       .attr("text-anchor", "middle")
       .attr("dy", ".35em")
@@ -344,7 +351,7 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
       .attr("font-size", d => d.type === 'directory' ? "10px" : "8px")
       .text(d => d.type === 'directory' ? '📁' : getFileEmoji(d.extension || ''));
     
-    // Add text labels with a modern style
+    // Optimize label rendering with simplified text
     node.append("text")
       .attr("dy", d => d.size + 15)
       .attr("text-anchor", "middle")
@@ -352,14 +359,12 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
       .attr("font-size", "8px")
       .attr("font-weight", 500)
       .attr("pointer-events", "none")
-      .attr("filter", "drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7))")
       .text(d => {
-        // Truncate long names
         const name = d.name;
-        return name.length > 15 ? name.substring(0, 12) + '...' : name;
+        return name.length > 12 ? name.substring(0, 9) + '...' : name;
       });
     
-    // Update positions on each tick with smoother curved links
+    // Optimize tick function with better performance
     simulation.on("tick", () => {
       link.attr("d", d => {
         const sourceX = (d.source as D3Node).x!;
@@ -371,117 +376,88 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
         const dy = targetY - sourceY;
         const dr = Math.sqrt(dx * dx + dy * dy) * 2;
         
-        // Straight lines for closer nodes, curved for more distant
-        if (dr < 100) {
-          return `M${sourceX},${sourceY} L${targetX},${targetY}`;
-        } else {
-          return `M${sourceX},${sourceY} A${dr},${dr} 0 0,1 ${targetX},${targetY}`;
-        }
+        // Use simpler path for better performance
+        return dr < 80 
+          ? `M${sourceX},${sourceY} L${targetX},${targetY}`
+          : `M${sourceX},${sourceY} A${dr},${dr} 0 0,1 ${targetX},${targetY}`;
       });
       
       node.attr("transform", d => `translate(${d.x},${d.y})`);
     });
     
-    // Helper functions for drag behavior
-    function dragStarted(event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) {
-      if (!event.active) simulation.alphaTarget(0.3).restart();
-      d.fx = d.x;
-      d.fy = d.y;
-    }
-    
-    function dragged(event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) {
-      d.fx = event.x;
-      d.fy = event.y;
-    }
-    
-    function dragEnded(event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) {
-      if (!event.active) simulation.alphaTarget(0);
-      d.fx = null;
-      d.fy = null;
-    }
-    
-    // Function to highlight connected nodes
-    function highlightConnections(d: D3Node) {
-      const connected = new Set<string>([d.id]);
-      
-      // Find all connected nodes
-      links.forEach(link => {
-        const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
-        const targetId = typeof link.target === 'string' ? link.target : link.target.id;
-        
-        if (sourceId === d.id) connected.add(targetId);
-        if (targetId === d.id) connected.add(sourceId);
+    // Update the initial positions of nodes to be centered
+    nodes.forEach(node => {
+      if (node.id === "root") {
+        node.x = 0;
+        node.y = 0;
+        node.fx = 0;
+        node.fy = 0;
+      }
+    });
+
+    // Optimize zoom behavior with initial centering
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.1, 4])
+      .on("zoom", (event) => {
+        g.attr("transform", `translate(${centerX},${centerY}) scale(${event.transform.k})`);
+        setZoomLevel(event.transform.k);
       });
-      
-      // Apply visual highlighting
-      node.classed("node--highlighted", n => connected.has(n.id));
-      link.classed("link--highlighted", l => {
-        const sourceId = typeof l.source === 'string' ? l.source : l.source.id;
-        const targetId = typeof l.target === 'string' ? l.target : l.target.id;
-        return connected.has(sourceId) && connected.has(targetId);
-      });
-      
-      // Fade non-connected nodes
-      node.style("opacity", n => connected.has(n.id) ? 1 : 0.3);
-      link.style("opacity", l => {
-        const sourceId = typeof l.source === 'string' ? l.source : l.source.id;
-        const targetId = typeof l.target === 'string' ? l.target : l.target.id;
-        return (connected.has(sourceId) && connected.has(targetId)) ? 0.8 : 0.1;
-      });
-      
-      setHighlightedNodes(connected);
-    }
+
+    // Store zoom behavior for later use
+    zoomRef.current = zoom;
+
+    // Apply zoom behavior to SVG with initial transform
+    svg.call(zoom)
+      .call(zoom.transform, d3.zoomIdentity.translate(centerX, centerY));
+
+    // Cleanup function
+    return () => {
+      if (simulation) {
+        simulation.stop();
+      }
+    };
+  }, [nodes, links, simulationConfig, isVisible]);
+  
+  // Update the zoom handlers
+  const handleZoomIn = useCallback(() => {
+    if (!svgRef.current) return;
     
-    // Function to reset highlighting
-    function resetHighlighting() {
-      node.classed("node--highlighted", false).style("opacity", 1);
-      link.classed("link--highlighted", false).style("opacity", 0.5);
-      setHighlightedNodes(new Set());
-    }
+    const svg = d3.select(svgRef.current);
+    const currentTransform = d3.zoomTransform(svg.node()!);
+    const newScale = currentTransform.k * 1.3;
     
-    // Auto-fit the view with animation
     svg.transition()
-      .duration(750)
-      .call(zoom.transform, d3.zoomIdentity);
-  };
-  
-  // Handle zoom controls
-  const handleZoomIn = () => {
-    if (svgRef.current) {
-      const svg = d3.select(svgRef.current);
-      svg.transition().duration(300)
-        .call(d3.zoom().scaleBy, 1.3);
-    }
-  };
-  
-  const handleZoomOut = () => {
-    if (svgRef.current) {
-      const svg = d3.select(svgRef.current);
-      svg.transition().duration(300)
-        .call(d3.zoom().scaleBy, 1 / 1.3);
-    }
-  };
-  
-  const handleResetView = () => {
-    if (svgRef.current && containerRef.current) {
-      const width = containerRef.current.clientWidth;
-      const height = containerRef.current.clientHeight || 700;
-      
-      const zoom = d3.zoom<SVGSVGElement, unknown>().transform(
-        d3.select(svgRef.current),
-        d3.zoomIdentity.translate(width / 2, height / 2).scale(1)
-      );
-      
-      d3.select(svgRef.current).transition().duration(500).call(zoom as any);
-    }
-  };
+      .duration(300)
+      .call(d3.zoom<SVGSVGElement, unknown>().transform, currentTransform.scale(newScale));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    if (!svgRef.current) return;
+    
+    const svg = d3.select(svgRef.current);
+    const currentTransform = d3.zoomTransform(svg.node()!);
+    const newScale = currentTransform.k / 1.3;
+    
+    svg.transition()
+      .duration(300)
+      .call(d3.zoom<SVGSVGElement, unknown>().transform, currentTransform.scale(newScale));
+  }, []);
+
+  const handleResetView = useCallback(() => {
+    if (!svgRef.current) return;
+    
+    const svg = d3.select(svgRef.current);
+    svg.transition()
+      .duration(300)
+      .call(d3.zoom<SVGSVGElement, unknown>().transform, d3.zoomIdentity);
+  }, []);
   
   // Filter nodes based on search and type filter
   useEffect(() => {
     if (!svgRef.current || nodes.length === 0) return;
     
     const svg = d3.select(svgRef.current);
-    const nodeElements = svg.selectAll(".node");
+    const nodeElements = svg.selectAll<SVGGElement, D3Node>(".node");
     
     // Apply search filter
     if (searchTerm) {
@@ -523,15 +499,20 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
     }
   }, [searchTerm, filterType, nodes]);
   
-  // Handle window resize
+  // Handle window resize with debounce
   useEffect(() => {
-    const handleResize = () => {
-      initializeVisualization();
-    };
-    
+    const handleResize = debounce(() => {
+      if (isVisible) {
+        initializeVisualization();
+      }
+    }, 250);
+
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [nodes, links]);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      handleResize.cancel();
+    };
+  }, [nodes, links, isVisible]);
   
   // Handle download
   const handleDownload = () => {
@@ -574,6 +555,104 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
     return emojiMap[extension] || "📄";
   };
   
+  // Helper functions for drag behavior
+  function dragStarted(event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) {
+    if (!event.active) simulationRef.current?.alphaTarget(0.3).restart();
+    d.fx = d.x;
+    d.fy = d.y;
+  }
+  
+  function dragged(event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) {
+    d.fx = event.x;
+    d.fy = event.y;
+  }
+  
+  function dragEnded(event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) {
+    if (!event.active) simulationRef.current?.alphaTarget(0);
+    d.fx = null;
+    d.fy = null;
+  }
+  
+  // Function to highlight connected nodes
+  function highlightConnections(d: D3Node) {
+    if (!svgRef.current) return;
+    
+    const svg = d3.select(svgRef.current);
+    const nodeElements = svg.selectAll<SVGGElement, D3Node>(".node");
+    const linkElements = svg.selectAll<SVGPathElement, D3Link>(".links path");
+    
+    const connected = new Set<string>([d.id]);
+    
+    // Find all connected nodes
+    links.forEach(link => {
+      const sourceId = typeof link.source === 'string' ? link.source : (link.source as D3Node).id;
+      const targetId = typeof link.target === 'string' ? link.target : (link.target as D3Node).id;
+      
+      if (sourceId === d.id) connected.add(targetId);
+      if (targetId === d.id) connected.add(sourceId);
+    });
+    
+    // Apply visual highlighting
+    nodeElements.classed("node--highlighted", n => connected.has(n.id));
+    linkElements.classed("link--highlighted", l => {
+      const sourceId = typeof l.source === 'string' ? l.source : (l.source as D3Node).id;
+      const targetId = typeof l.target === 'string' ? l.target : (l.target as D3Node).id;
+      return connected.has(sourceId) && connected.has(targetId);
+    });
+    
+    // Fade non-connected nodes
+    nodeElements.style("opacity", n => connected.has(n.id) ? 1 : 0.3);
+    linkElements.style("opacity", l => {
+      const sourceId = typeof l.source === 'string' ? l.source : (l.source as D3Node).id;
+      const targetId = typeof l.target === 'string' ? l.target : (l.target as D3Node).id;
+      return (connected.has(sourceId) && connected.has(targetId)) ? 0.8 : 0.1;
+    });
+    
+    setHighlightedNodes(connected);
+  }
+  
+  // Function to reset highlighting
+  function resetHighlighting() {
+    if (!svgRef.current) return;
+    
+    const svg = d3.select(svgRef.current);
+    const nodeElements = svg.selectAll<SVGGElement, D3Node>(".node");
+    const linkElements = svg.selectAll<SVGPathElement, D3Link>(".links path");
+    
+    nodeElements.classed("node--highlighted", false).style("opacity", 1);
+    linkElements.classed("link--highlighted", false).style("opacity", 0.5);
+    setHighlightedNodes(new Set());
+  }
+
+  // Add function to fetch file content
+  const fetchFileContent = async (path: string) => {
+    if (!path) return;
+    
+    setIsLoadingContent(true);
+    setFileContent(null);
+    
+    try {
+      const content = await getFileContent(repoUrl, path);
+      setFileContent(content);
+    } catch (error) {
+      console.error("Error fetching file content:", error);
+      toast.error("Failed to fetch file content");
+    } finally {
+      setIsLoadingContent(false);
+    }
+  };
+
+  // Update node click handler
+  const handleNodeClick = async (event: React.MouseEvent, d: D3Node) => {
+    event.stopPropagation();
+    setSelectedNode(d);
+    setIsDetailSheetOpen(true);
+    
+    if (d.type === 'file' && d.path) {
+      await fetchFileContent(d.path);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full min-h-[600px]">
@@ -642,7 +721,7 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
           <Input
             placeholder="Search files and directories..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => debouncedSearch(e.target.value)}
             className="h-9 bg-background/20 backdrop-blur-sm border-border/40"
           />
         </div>
@@ -674,7 +753,7 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
                   variant="outline" 
                   size="icon" 
                   onClick={handleZoomIn}
-                  className="h-8 w-8 bg-background/60 backdrop-blur-md border-border/40"
+                  className="h-8 w-8 bg-background/60 backdrop-blur-md border-border/40 hover:bg-background/80"
                 >
                   <ZoomIn size={16} />
                 </Button>
@@ -692,7 +771,7 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
                   variant="outline" 
                   size="icon" 
                   onClick={handleZoomOut}
-                  className="h-8 w-8 bg-background/60 backdrop-blur-md border-border/40"
+                  className="h-8 w-8 bg-background/60 backdrop-blur-md border-border/40 hover:bg-background/80"
                 >
                   <ZoomOut size={16} />
                 </Button>
@@ -710,7 +789,7 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
                   variant="outline" 
                   size="icon" 
                   onClick={handleResetView}
-                  className="h-8 w-8 bg-background/60 backdrop-blur-md border-border/40"
+                  className="h-8 w-8 bg-background/60 backdrop-blur-md border-border/40 hover:bg-background/80"
                 >
                   <Maximize size={16} />
                 </Button>
@@ -812,11 +891,21 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
                   
                   {selectedNode.type === 'file' && (
                     <div className="space-y-2">
-                      <h4 className="text-sm font-medium">Preview</h4>
-                      <div className="bg-muted/40 p-3 rounded-md overflow-auto max-h-48">
-                        <div className="text-xs opacity-50 italic">
-                          File preview not available in this view. Click on files in the repository explorer for content previews.
-                        </div>
+                      <h4 className="text-sm font-medium">File Content</h4>
+                      <div className="bg-muted/40 p-3 rounded-md overflow-auto max-h-[400px]">
+                        {isLoadingContent ? (
+                          <div className="flex items-center justify-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                          </div>
+                        ) : fileContent ? (
+                          <pre className="text-xs font-mono whitespace-pre-wrap break-words">
+                            {fileContent}
+                          </pre>
+                        ) : (
+                          <div className="text-xs opacity-50 italic">
+                            No content available
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -843,4 +932,4 @@ const RadialMindMap: React.FC<RadialMindMapProps> = ({ repoUrl, repoData }) => {
   );
 };
 
-export default RadialMindMap;
+export default React.memo(RadialMindMap);

@@ -537,3 +537,58 @@ const calculateBranchScore = (branchCount: number): number => {
     return 2; // More than 50 branches is very messy
   }
 };
+
+/**
+ * Fetch file content from GitHub
+ */
+export const getFileContent = async (repoUrl: string, path: string): Promise<string | null> => {
+  const repoInfo = parseGitHubUrl(repoUrl);
+  if (!repoInfo) {
+    toast.error("Invalid GitHub repository URL");
+    return null;
+  }
+
+  const { owner, repo } = repoInfo;
+  const headers: HeadersInit = {
+    Accept: "application/vnd.github.v3+json",
+  };
+
+  // Use environment variable API key if available
+  const githubApiKey = import.meta.env.VITE_GITHUB_API_KEY || null;
+  if (githubApiKey) {
+    headers.Authorization = `Bearer ${githubApiKey}`;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+      { headers }
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        toast.error("File not found");
+        return null;
+      } else if (response.status === 403 && response.headers.get("X-RateLimit-Remaining") === "0") {
+        toast.error("GitHub API rate limit exceeded");
+        return null;
+      } else {
+        toast.error(`Error fetching file content: ${response.statusText}`);
+        return null;
+      }
+    }
+
+    const data = await response.json();
+    
+    // GitHub API returns base64 encoded content
+    if (data.content && data.encoding === 'base64') {
+      return atob(data.content);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error fetching file content:", error);
+    toast.error("Failed to fetch file content");
+    return null;
+  }
+};

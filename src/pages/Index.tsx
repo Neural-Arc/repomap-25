@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { useApi } from "@/contexts/ApiContext";
@@ -8,6 +7,7 @@ import RepositoryVisualizer from "@/components/RepositoryVisualizer";
 import RepoDocumentation from "@/components/RepoDocumentation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 type AppState = "input" | "analyzing" | "result";
 
@@ -17,6 +17,7 @@ const Index = () => {
   const [appState, setAppState] = useState<AppState>("input");
   const [analyzedRepo, setAnalyzedRepo] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("visualization");
+  const navigate = useNavigate();
 
   // Check for missing API keys when component mounts
   useEffect(() => {
@@ -50,11 +51,25 @@ const Index = () => {
     setAppState("result");
   };
 
+  const handleLogoClick = () => {
+    // Reset all state
+    setRepoUrl("");
+    setAppState("input");
+    setAnalyzedRepo(null);
+    setActiveTab("visualization");
+    
+    // Navigate to home page
+    navigate('/', { replace: true });
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-background/80 to-background via-background/40">
       <header className="border-b border-border/40 p-4 bg-gradient-to-r from-background to-muted/20 backdrop-blur-sm sticky top-0 z-10">
         <div className="container flex justify-between items-center">
-          <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">
+          <h1 
+            onClick={handleLogoClick}
+            className="text-2xl font-bold tracking-tight bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text cursor-pointer hover:opacity-80 transition-opacity"
+          >
             AlphaCode Explorer
           </h1>
         </div>
@@ -158,7 +173,10 @@ const Index = () => {
       </main>
 
       <footer className="border-t border-border/40 p-4 bg-gradient-to-r from-background to-muted/20 backdrop-blur-sm">
-        <div className="container text-center text-sm text-muted-foreground">
+        <div 
+          onClick={handleLogoClick}
+          className="container text-center text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+        >
           AlphaCode Explorer — Visualize and understand GitHub repositories with AI
         </div>
       </footer>
